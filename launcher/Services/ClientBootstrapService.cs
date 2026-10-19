@@ -41,8 +41,11 @@ internal sealed class ClientBootstrapService
         progress.Report("Проверяю моды RE:volution…");
         var hasManagedGameplayMod = manifest.Files.Any(file => file.Role == ManagedFileRoles.GameplayMod);
         var hasManagedClientMod = manifest.Files.Any(file => file.Role == ManagedFileRoles.ClientMod);
-        if (!hasManagedGameplayMod || !hasManagedClientMod)
-            await _payload.InstallAsync(progress, cancellationToken);
+        await _payload.InstallAsync(
+            installGameplayMod: !hasManagedGameplayMod,
+            installClientMod: !hasManagedClientMod,
+            progress,
+            cancellationToken);
         await _managedFiles.SyncAsync(manifest.Files, progress, cancellationToken);
 
         progress.Report("Настраиваю подключение к серверу…");
