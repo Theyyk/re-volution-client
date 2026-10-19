@@ -25,6 +25,22 @@ internal sealed class ManifestClient
         return await DeserializeBoundedAsync(source, cancellationToken);
     }
 
+    public async Task<ClientManifest> GetLocalAsync(string path, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new InvalidDataException("Local manifest path is empty.");
+
+        var fullPath = Path.GetFullPath(path);
+        var info = new FileInfo(fullPath);
+        if (!info.Exists)
+            throw new FileNotFoundException("Local development manifest was not found.", fullPath);
+        if (info.Length > MaximumManifestBytes)
+            throw new InvalidDataException("Manifest is too large.");
+
+        await using var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 16 * 1024, true);
+        return await DeserializeBoundedAsync(source, cancellationToken);
+    }
+
     public ClientManifest GetEmbedded(string resourceName)
     {
         using var source = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
