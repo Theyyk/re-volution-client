@@ -7,7 +7,7 @@ namespace REvolutionClient.Launcher.UI;
 
 internal sealed class MainForm : Form
 {
-    private const string EmbeddedManifestResource = "REvolutionClient.Manifest.bootstrap.dev.json";
+    private const string DefaultManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.json";
     private const string ManifestUrlEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_URL";
 
     private readonly TextBox _username = new() { Left = 142, Top = 22, Width = 250 };
@@ -173,10 +173,10 @@ internal sealed class MainForm : Form
 
     private static Task<ClientManifest> LoadManifestAsync(ManifestClient manifestClient, CancellationToken cancellationToken)
     {
-        var overrideUrl = Environment.GetEnvironmentVariable(ManifestUrlEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(overrideUrl))
-            return Task.FromResult(manifestClient.GetEmbedded(EmbeddedManifestResource));
-        if (!Uri.TryCreate(overrideUrl, UriKind.Absolute, out var uri))
+        var manifestUrl = Environment.GetEnvironmentVariable(ManifestUrlEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(manifestUrl))
+            manifestUrl = DefaultManifestUrl;
+        if (!Uri.TryCreate(manifestUrl, UriKind.Absolute, out var uri))
             throw new InvalidDataException($"{ManifestUrlEnvironmentVariable} is not a valid absolute URL.");
         return manifestClient.GetAsync(uri, cancellationToken);
     }
