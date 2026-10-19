@@ -1,29 +1,52 @@
 buildscript {
     repositories {
-        jcenter()
-        maven { url = 'https://maven.minecraftforge.net' }
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://repo.spongepowered.org/maven' }
+        mavenCentral()
     }
-    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT' }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:5.1.73'
+    }
 }
 
-apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'eclipse'
 
 version = project.modVersion
 group = 'com.revolution.client'
 archivesBaseName = 'RE-volution-Client-Mod'
-sourceCompatibility = targetCompatibility = '1.8'
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
 
 minecraft {
-    version = "${project.minecraftVersion}-${project.forgeVersion}"
-    runDir = 'run'
-    mappings = 'snapshot_20171003'
+    mappings channel: 'snapshot', version: '20171003-1.12'
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${project.minecraftVersion}-${project.forgeVersion}"
+}
+
+configurations.configureEach {
+    resolutionStrategy {
+        force 'net.minecraftforge:mergetool:0.2.3.3'
+    }
 }
 
 processResources {
     inputs.property 'version', project.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
+    filesMatching('mcmod.info') {
         expand 'version': project.version
     }
-    from(sourceSets.main.resources.srcDirs) { exclude 'mcmod.info' }
 }
+
+jar.finalizedBy('reobfJar')
