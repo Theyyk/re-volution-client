@@ -8,11 +8,13 @@ internal sealed class ManagedFileService
     private const long MaximumManagedFileBytes = 2L * 1024 * 1024 * 1024;
     private readonly HttpClient _httpClient;
     private readonly LauncherPaths _paths;
+    private readonly bool _allowLocalFileSources;
 
-    public ManagedFileService(HttpClient httpClient, LauncherPaths paths)
+    public ManagedFileService(HttpClient httpClient, LauncherPaths paths, bool allowLocalFileSources = false)
     {
         _httpClient = httpClient;
         _paths = paths;
+        _allowLocalFileSources = allowLocalFileSources;
     }
 
     public async Task SyncAsync(IEnumerable<ManagedFileManifest> files, IProgress<string> progress, CancellationToken cancellationToken)
@@ -32,11 +34,12 @@ internal sealed class ManagedFileService
         RemoveStaleOwnedMods(materialized);
     }
 
-    private static void Validate(ManagedFileManifest file)
+    private void Validate(ManagedFileManifest file)
     {
         if (string.IsNullOrWhiteSpace(file.Path) || Path.IsPathRooted(file.Path))
             throw new InvalidDataException("Managed file path must be relative.");
-        if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        if (!Uri.TryCreate(file.DownloadUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && !(_allowLocalFileSources && uri.IsFile)))
             throw new InvalidDataException($"Managed file URL must use HTTPS: {file.Path}");
         if (file.Size <= 0 || file.Size > MaximumManagedFileBytes || file.Sha256.Length != 64)
             throw new InvalidDataException($"Managed file metadata is invalid: {file.Path}");
@@ -72,8 +75,22 @@ internal sealed class ManagedFileService
         var temporary = Path.Combine(_paths.Downloads, $"managed-{Guid.NewGuid():N}.tmp");
         try
         {
-            using (var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+            if (uri.IsFile)
             {
+                var sourcePath = uri.LocalPath;
+                var sourceInfo = new FileInfo(sourcePath);
+                if (!sourceInfo.Exists)
+                    throw new FileNotFoundException($"Managed development file is missing: {file.Path}", sourcePath);
+                if (sourceInfo.Length != file.Size)
+                    throw new InvalidDataException($"Unexpected size for {file.Path}.");
+
+                await using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+                await using var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true);
+                await input.CopyToAsync(output, 81920, cancellationToken);
+            }
+            else
+            {
+                using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
                 if (response.Content.Headers.ContentLength is long length && length != file.Size)
                     throw new InvalidDataException($"Unexpected size for {file.Path}.");
