@@ -65,8 +65,6 @@ internal sealed class MinecraftClientService
         progress.Report("Запускаю Minecraft…");
         var launcher = CreateLauncher();
 
-        // The Minecraft process uses the authenticated RE:volution username. The access token is deliberately
-        // not placed on the command line. Server-side token proof will be added with the auth handshake.
         var process = await launcher.BuildProcessAsync(versionName, new MLaunchOption
         {
             Session = MSession.CreateOfflineSession(session.Username),
@@ -75,7 +73,20 @@ internal sealed class MinecraftClientService
             GameLauncherName = "RE:volution Client",
             GameLauncherVersion = "1.0.0"
         }, cancellationToken);
+
         if (!process.Start()) throw new InvalidOperationException("Minecraft process could not be started.");
+
+        var earlyExitDelay = Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+        var exitTask = process.WaitForExitAsync(cancellationToken);
+        var completed = await Task.WhenAny(earlyExitDelay, exitTask);
+        if (completed == exitTask)
+        {
+            await exitTask;
+            var logs = Path.Combine(_paths.Game, "logs", "latest.log");
+            var logHint = File.Exists(logs) ? $" Лог: {logs}" : " Лог Minecraft не был создан.";
+            throw new InvalidOperationException($"Minecraft завершился сразу после запуска. ExitCode: {process.ExitCode}.{logHint}");
+        }
+
         return process;
     }
 
