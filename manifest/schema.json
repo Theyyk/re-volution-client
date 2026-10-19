@@ -3,10 +3,18 @@
   "title": "RE:volution Client manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["productVersion", "java", "minecraft", "server", "files"],
+  "required": ["productVersion", "developmentOnly", "auth", "java", "minecraft", "server", "files"],
   "properties": {
     "productVersion": { "type": "string", "minLength": 1 },
     "developmentOnly": { "type": "boolean" },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseUrl"],
+      "properties": {
+        "baseUrl": { "type": "string", "format": "uri" }
+      }
+    },
     "java": {
       "type": "object",
       "additionalProperties": false,
@@ -14,16 +22,10 @@
       "properties": {
         "majorVersion": { "const": 8 },
         "provider": { "enum": ["adoptium", "static"] },
-        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "downloadUrl": { "type": "string", "format": "uri" },
         "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
         "size": { "type": "integer", "minimum": 1 }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "provider": { "const": "static" } } },
-          "then": { "required": ["downloadUrl", "sha256", "size"] }
-        }
-      ]
+      }
     },
     "minecraft": {
       "type": "object",

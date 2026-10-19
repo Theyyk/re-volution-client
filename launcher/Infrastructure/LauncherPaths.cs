@@ -2,9 +2,10 @@ namespace REvolutionClient.Launcher.Infrastructure;
 
 internal sealed class LauncherPaths
 {
-    public LauncherPaths()
+    public LauncherPaths(string root)
     {
-        Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "REvolutionClient");
+        if (string.IsNullOrWhiteSpace(root)) throw new ArgumentException("Install root is required.", nameof(root));
+        Root = Path.GetFullPath(root.Trim());
         Runtime = Path.Combine(Root, "runtime", "java8");
         Game = Path.Combine(Root, "game");
         Downloads = Path.Combine(Root, "downloads");

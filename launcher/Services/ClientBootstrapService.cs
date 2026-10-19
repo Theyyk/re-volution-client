@@ -52,6 +52,7 @@ internal sealed class ClientBootstrapService
     private static void ValidateManifest(ClientManifest manifest)
     {
         if (string.IsNullOrWhiteSpace(manifest.ProductVersion)) throw new InvalidDataException("Manifest productVersion is required.");
+        if (string.IsNullOrWhiteSpace(manifest.Auth.BaseUrl)) throw new InvalidDataException("Manifest auth.baseUrl is required.");
         if (manifest.Minecraft.Version != "1.12.2") throw new InvalidDataException("Unsupported Minecraft version.");
         if (manifest.Minecraft.ForgeVersion != "14.23.5.2859") throw new InvalidDataException("Unsupported Forge version.");
         if (manifest.Minecraft.MemoryMb is < 1024 or > 16384) throw new InvalidDataException("Minecraft memory setting is out of range.");

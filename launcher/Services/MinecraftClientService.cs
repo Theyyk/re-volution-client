@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using CmlLib.Core;
-using CmlLib.Core.Auth.Microsoft;
+using CmlLib.Core.Auth;
 using CmlLib.Core.Installer.Forge;
 using CmlLib.Core.Installer.Forge.Versions;
 using CmlLib.Core.Installers;
@@ -59,30 +59,17 @@ internal sealed class MinecraftClientService
         return installer.VersionName;
     }
 
-    public async Task<Process> AuthenticateAndLaunchAsync(string versionName, MinecraftManifest manifest, JavaRuntimeInstallation java, IProgress<string> progress, CancellationToken cancellationToken)
+    public async Task<Process> LaunchAsync(string versionName, MinecraftManifest manifest, JavaRuntimeInstallation java, AuthSession session, IProgress<string> progress, CancellationToken cancellationToken)
     {
-        progress.Report("Проверяю вход в Microsoft…");
-        var loginHandler = JELoginHandlerBuilder.BuildDefault();
-        CmlLib.Core.Auth.MSession session;
-        try
-        {
-            session = await loginHandler.AuthenticateSilently(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            progress.Report("Требуется вход в Microsoft. Откройте окно авторизации…");
-            session = await loginHandler.AuthenticateInteractively(cancellationToken);
-        }
-
+        if (session.ExpiresAtUtc <= DateTimeOffset.UtcNow) throw new InvalidOperationException("Сессия RE:volution истекла. Войдите снова.");
         progress.Report("Запускаю Minecraft…");
         var launcher = CreateLauncher();
+
+        // The Minecraft process uses the authenticated RE:volution username. The access token is deliberately
+        // not placed on the command line. Server-side token proof will be added with the auth handshake.
         var process = await launcher.BuildProcessAsync(versionName, new MLaunchOption
         {
-            Session = session,
+            Session = MSession.CreateOfflineSession(session.Username),
             JavaPath = java.JavawExecutable,
             MaximumRamMb = manifest.MemoryMb,
             GameLauncherName = "RE:volution Client",

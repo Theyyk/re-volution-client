@@ -4,10 +4,16 @@ internal sealed class ClientManifest
 {
     public string ProductVersion { get; init; } = string.Empty;
     public bool DevelopmentOnly { get; init; }
+    public AuthManifest Auth { get; init; } = new();
     public JavaRuntimeManifest Java { get; init; } = new();
     public MinecraftManifest Minecraft { get; init; } = new();
     public ServerManifest Server { get; init; } = new();
     public List<ManagedFileManifest> Files { get; init; } = new();
+}
+
+internal sealed class AuthManifest
+{
+    public string BaseUrl { get; init; } = string.Empty;
 }
 
 internal sealed class JavaRuntimeManifest

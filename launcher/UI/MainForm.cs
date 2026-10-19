@@ -10,36 +10,93 @@ internal sealed class MainForm : Form
     private const string EmbeddedManifestResource = "REvolutionClient.Manifest.bootstrap.dev.json";
     private const string ManifestUrlEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_URL";
 
-    private readonly Label _status = new() { AutoSize = true, Text = "Готов к запуску", Left = 24, Top = 28, MaximumSize = new Size(610, 0) };
-    private readonly Button _play = new() { Text = "Играть", Width = 180, Height = 44, Left = 24, Top = 78 };
+    private readonly TextBox _username = new() { Left = 142, Top = 22, Width = 250 };
+    private readonly TextBox _password = new() { Left = 142, Top = 56, Width = 250, UseSystemPasswordChar = true };
+    private readonly Button _login = new() { Text = "Войти", Left = 410, Top = 20, Width = 100, Height = 28 };
+    private readonly Button _register = new() { Text = "Регистрация", Left = 518, Top = 20, Width = 118, Height = 28 };
+    private readonly TextBox _installRoot = new() { Left = 142, Top = 101, Width = 390 };
+    private readonly Button _browse = new() { Text = "Изменить…", Left = 540, Top = 99, Width = 96, Height = 28 };
+    private readonly Label _status = new() { AutoSize = true, Text = "Войдите в RE:volution", Left = 24, Top = 147, MaximumSize = new Size(610, 0) };
+    private readonly Button _play = new() { Text = "Играть", Width = 180, Height = 44, Left = 24, Top = 185, Enabled = false };
+
+    private readonly LauncherSettingsStore _settingsStore = new();
     private CancellationTokenSource? _operation;
+    private AuthSession? _session;
 
     public MainForm()
     {
         Text = "RE:volution Client";
-        ClientSize = new Size(660, 150);
+        ClientSize = new Size(660, 250);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
-        Controls.Add(_status);
-        Controls.Add(_play);
+
+        Controls.Add(new Label { AutoSize = true, Text = "Имя пользователя:", Left = 24, Top = 25 });
+        Controls.Add(new Label { AutoSize = true, Text = "Пароль:", Left = 24, Top = 59 });
+        Controls.Add(new Label { AutoSize = true, Text = "Папка установки:", Left = 24, Top = 105 });
+        Controls.AddRange(new Control[] { _username, _password, _login, _register, _installRoot, _browse, _status, _play });
+
+        _installRoot.Text = _settingsStore.Load().InstallRoot;
+        _login.Click += (_, _) => AuthenticateAsync(register: false);
+        _register.Click += (_, _) => AuthenticateAsync(register: true);
+        _browse.Click += OnBrowse;
         _play.Click += OnPlayAsync;
+    }
+
+    private async void AuthenticateAsync(bool register)
+    {
+        SetBusy(true);
+        StartOperation();
+        try
+        {
+            using var http = CreateHttpClient();
+            var manifestClient = new ManifestClient(http);
+            var manifest = await LoadManifestAsync(manifestClient, _operation!.Token);
+            var auth = new AuthApiClient(http);
+            _status.Text = register ? "Создаю аккаунт RE:volution…" : "Выполняю вход в RE:volution…";
+            _session = register
+                ? await auth.RegisterAsync(manifest.Auth, manifest.DevelopmentOnly, _username.Text, _password.Text, _operation.Token)
+                : await auth.LoginAsync(manifest.Auth, manifest.DevelopmentOnly, _username.Text, _password.Text, _operation.Token);
+            _password.Clear();
+            _username.Text = _session.Username;
+            _status.Text = register
+                ? $"Аккаунт {_session.Username} создан. Вход выполнен."
+                : $"Вход выполнен: {_session.Username}";
+            _play.Enabled = true;
+        }
+        catch (OperationCanceledException)
+        {
+            _status.Text = "Операция отменена.";
+        }
+        catch (Exception ex)
+        {
+            _session = null;
+            _play.Enabled = false;
+            _status.Text = register ? "Ошибка регистрации." : "Ошибка входа.";
+            MessageBox.Show(this, ex.Message, "RE:volution Client", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     private async void OnPlayAsync(object? sender, EventArgs e)
     {
-        _play.Enabled = false;
-        _operation?.Dispose();
-        _operation = new CancellationTokenSource();
+        if (_session is null)
+        {
+            _status.Text = "Сначала войдите в RE:volution.";
+            return;
+        }
+
+        SetBusy(true);
+        StartOperation();
         try
         {
-            using var handler = new HttpClientHandler
-            {
-                AllowAutoRedirect = true,
-                UseProxy = true,
-                AutomaticDecompression = DecompressionMethods.All
-            };
-            using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
-            var paths = new LauncherPaths();
+            var installRoot = LauncherSettingsStore.ValidateInstallRoot(_installRoot.Text);
+            await _settingsStore.SaveAsync(installRoot, _operation!.Token);
+
+            using var http = CreateHttpClient();
+            var paths = new LauncherPaths(installRoot);
             var progress = new Progress<string>(message => _status.Text = message);
             var manifestClient = new ManifestClient(http);
             var manifest = await LoadManifestAsync(manifestClient, _operation.Token);
@@ -53,7 +110,7 @@ internal sealed class MainForm : Form
                 new ClientConfigService(paths));
 
             var result = await bootstrap.PrepareAsync(manifest, progress, _operation.Token);
-            await minecraft.AuthenticateAndLaunchAsync(result.ForgeVersionName, result.Manifest.Minecraft, result.Java, progress, _operation.Token);
+            await minecraft.LaunchAsync(result.ForgeVersionName, result.Manifest.Minecraft, result.Java, _session, progress, _operation.Token);
             _status.Text = "Minecraft запущен.";
             WindowState = FormWindowState.Minimized;
         }
@@ -68,8 +125,50 @@ internal sealed class MainForm : Form
         }
         finally
         {
-            _play.Enabled = true;
+            SetBusy(false);
         }
+    }
+
+    private void OnBrowse(object? sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Выберите папку установки RE:volution Client",
+            UseDescriptionForTitle = true,
+            SelectedPath = Directory.Exists(_installRoot.Text) ? _installRoot.Text : string.Empty,
+            ShowNewFolderButton = true
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+            _installRoot.Text = dialog.SelectedPath;
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            UseProxy = true,
+            AutomaticDecompression = DecompressionMethods.All
+        };
+        return new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
+    }
+
+    private void StartOperation()
+    {
+        _operation?.Cancel();
+        _operation?.Dispose();
+        _operation = new CancellationTokenSource();
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _login.Enabled = !busy;
+        _register.Enabled = !busy;
+        _browse.Enabled = !busy;
+        _username.Enabled = !busy;
+        _password.Enabled = !busy;
+        _installRoot.Enabled = !busy;
+        _play.Enabled = !busy && _session is not null;
     }
 
     private static Task<ClientManifest> LoadManifestAsync(ManifestClient manifestClient, CancellationToken cancellationToken)

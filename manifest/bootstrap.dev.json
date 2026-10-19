@@ -1,6 +1,9 @@
 {
   "productVersion": "1.0.0",
   "developmentOnly": true,
+  "auth": {
+    "baseUrl": "http://127.0.0.1:25567/"
+  },
   "java": {
     "majorVersion": 8,
     "provider": "adoptium"
