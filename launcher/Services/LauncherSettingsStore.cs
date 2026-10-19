@@ -52,7 +52,22 @@ internal sealed class LauncherSettingsStore
                           root?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
                           StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Нельзя устанавливать RE:volution Client прямо в корень диска.");
+        if (ContainsCyrillic(full))
+            throw new InvalidDataException(
+                "Путь установки содержит кириллицу. Выберите папку без кириллических символов, например E:\\REvolutionClient.");
         return full;
+    }
+
+    private static bool ContainsCyrillic(string value)
+    {
+        foreach (var ch in value)
+        {
+            if ((ch >= '\u0400' && ch <= '\u052F') ||
+                (ch >= '\u2DE0' && ch <= '\u2DFF') ||
+                (ch >= '\uA640' && ch <= '\uA69F'))
+                return true;
+        }
+        return false;
     }
 
     private static void EnsureWritable(string path)
