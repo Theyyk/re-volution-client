@@ -1,0 +1,12 @@
+.idea/
+.vs/
+**/bin/
+**/obj/
+**/build/
+**/.gradle/
+launcher/publish/
+*.user
+*.suo
+*.log
+runtime/
+client-install/

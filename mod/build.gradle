@@ -1,0 +1,29 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven { url = 'https://maven.minecraftforge.net' }
+    }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT' }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = project.modVersion
+group = 'com.revolution.client'
+archivesBaseName = 'RE-volution-Client-Mod'
+sourceCompatibility = targetCompatibility = '1.8'
+
+minecraft {
+    version = "${project.minecraftVersion}-${project.forgeVersion}"
+    runDir = 'run'
+    mappings = 'snapshot_20171003'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version
+    }
+    from(sourceSets.main.resources.srcDirs) { exclude 'mcmod.info' }
+}

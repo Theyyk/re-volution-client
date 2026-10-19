@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RE:volution Client manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["productVersion", "java", "minecraft", "server", "files"],
+  "properties": {
+    "productVersion": { "type": "string", "minLength": 1 },
+    "java": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["majorVersion", "downloadUrl", "sha256", "size", "javaRelativePath"],
+      "properties": {
+        "majorVersion": { "const": 8 },
+        "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "size": { "type": "integer", "minimum": 1 },
+        "javaRelativePath": { "type": "string", "minLength": 1 }
+      }
+    },
+    "minecraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "forgeVersion"],
+      "properties": {
+        "version": { "const": "1.12.2" },
+        "forgeVersion": { "const": "14.23.5.2859" }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "downloadUrl", "sha256", "size"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+          "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+          "size": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}
