@@ -57,7 +57,13 @@ System Java discovery is an optimization only. Correct launch behavior must not 
 
 ## Manifest trust model
 
-The manifest is data, not executable instructions. Paths are relative and are rejected if they escape the installation root. Every managed file has an exact SHA-256 and size. A later release step will add manifest authenticity/signing before v1.0.0 distribution is accepted.
+The manifest is data, not executable instructions. Paths are relative and are rejected if they escape the installation root. Every managed file has an exact SHA-256 and size.
+
+Production manifests use a signed envelope. The launcher verifies an ECDSA P-256/SHA-256 signature over the exact manifest payload bytes using a public key embedded in the launcher trust keyring. A production (`developmentOnly=false`) remote manifest is rejected when it is unsigned, signed by an unknown key, uses a different algorithm, or has an invalid signature.
+
+Unsigned remote manifests are accepted only while they explicitly declare `developmentOnly=true`; this preserves the current local/feature bootstrap while production infrastructure is being prepared. Local `REVOLUTION_CLIENT_MANIFEST_FILE` overrides are also restricted to development manifests. Private signing keys must never be committed to this repository.
+
+A production manifest must additionally use HTTPS for Auth, must not target a loopback game server, and must manage exactly one gameplay mod and one client mod. This prevents a production release from silently falling back to JARs bundled in an older launcher EXE.
 
 ## Versioning
 
