@@ -23,5 +23,6 @@
   <ItemGroup>
     <EmbeddedResource Include="Payload\*.jar" LogicalName="REvolutionClient.Payload.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\manifest\bootstrap.dev.json" Link="Manifest\bootstrap.dev.json" LogicalName="REvolutionClient.Manifest.bootstrap.dev.json" />
+    <EmbeddedResource Include="..\manifest\trusted-manifest-keys.json" Link="Manifest\trusted-manifest-keys.json" LogicalName="REvolutionClient.Manifest.trusted-manifest-keys.json" />
   </ItemGroup>
 </Project>
