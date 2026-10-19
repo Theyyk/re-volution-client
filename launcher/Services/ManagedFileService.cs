@@ -17,7 +17,8 @@ internal sealed class ManagedFileService
 
     public async Task SyncAsync(IEnumerable<ManagedFileManifest> files, IProgress<string> progress, CancellationToken cancellationToken)
     {
-        foreach (var file in files)
+        var materialized = files.ToArray();
+        foreach (var file in materialized)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Validate(file);
@@ -27,6 +28,8 @@ internal sealed class ManagedFileService
             progress.Report($"Обновляю {file.Path}…");
             await DownloadAndReplaceAsync(target, file, cancellationToken);
         }
+
+        RemoveStaleOwnedMods(materialized);
     }
 
     private static void Validate(ManagedFileManifest file)
@@ -37,6 +40,12 @@ internal sealed class ManagedFileService
             throw new InvalidDataException($"Managed file URL must use HTTPS: {file.Path}");
         if (file.Size <= 0 || file.Size > MaximumManagedFileBytes || file.Sha256.Length != 64)
             throw new InvalidDataException($"Managed file metadata is invalid: {file.Path}");
+        if (!string.IsNullOrWhiteSpace(file.Role) &&
+            file.Role != ManagedFileRoles.GameplayMod &&
+            file.Role != ManagedFileRoles.ClientMod)
+            throw new InvalidDataException($"Unknown managed file role: {file.Role}");
+        if (!string.IsNullOrWhiteSpace(file.Role) && !file.Path.StartsWith("mods/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Managed mod role must target the mods directory: {file.Path}");
     }
 
     private string ResolveTarget(string relativePath)
@@ -92,6 +101,31 @@ internal sealed class ManagedFileService
         finally
         {
             if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private void RemoveStaleOwnedMods(IEnumerable<ManagedFileManifest> files)
+    {
+        var gameplay = files.SingleOrDefault(file => file.Role == ManagedFileRoles.GameplayMod);
+        var client = files.SingleOrDefault(file => file.Role == ManagedFileRoles.ClientMod);
+        if (gameplay is null && client is null) return;
+
+        var mods = Path.Combine(_paths.Game, "mods");
+        if (!Directory.Exists(mods)) return;
+
+        var gameplayName = gameplay is null ? null : Path.GetFileName(ResolveTarget(gameplay.Path));
+        var clientName = client is null ? null : Path.GetFileName(ResolveTarget(client.Path));
+
+        foreach (var path in Directory.EnumerateFiles(mods, "*.jar", SearchOption.TopDirectoryOnly))
+        {
+            var name = Path.GetFileName(path);
+            var isClient = name.StartsWith("RE-volution-Client-Mod-", StringComparison.OrdinalIgnoreCase);
+            var isGameplay = name.StartsWith("RE-volution-", StringComparison.OrdinalIgnoreCase) && !isClient;
+
+            if (client is not null && isClient && !string.Equals(name, clientName, StringComparison.OrdinalIgnoreCase))
+                File.Delete(path);
+            else if (gameplay is not null && isGameplay && !string.Equals(name, gameplayName, StringComparison.OrdinalIgnoreCase))
+                File.Delete(path);
         }
     }
 }
