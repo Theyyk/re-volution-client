@@ -25,15 +25,12 @@ internal sealed class JavaRuntimeService
         var managed = await FindManagedJava8Async(cancellationToken);
         if (managed is not null) return managed;
 
-        var system = await FindSystemJava8Async(cancellationToken);
-        if (system is not null) return system;
-
-        progress.Report("Java 8 не найдена. Загружаю управляемый runtime…");
+        progress.Report("Устанавливаю управляемую Java 8 x64…");
         var package = await ResolvePackageAsync(manifest, cancellationToken);
         await InstallManagedRuntimeAsync(package, cancellationToken);
 
         managed = await FindManagedJava8Async(cancellationToken);
-        return managed ?? throw new InvalidDataException("Downloaded Java runtime did not provide a valid Java 8 executable.");
+        return managed ?? throw new InvalidDataException("Downloaded Java runtime did not provide a valid managed Java 8 x64 executable.");
     }
 
     private async Task<JavaRuntimeInstallation?> FindManagedJava8Async(CancellationToken cancellationToken)
@@ -41,53 +38,14 @@ internal sealed class JavaRuntimeService
         if (!Directory.Exists(_paths.Runtime)) return null;
         foreach (var java in Directory.EnumerateFiles(_paths.Runtime, "java.exe", SearchOption.AllDirectories).OrderBy(path => path.Length))
         {
-            if (!await IsJava8Async(java, cancellationToken)) continue;
+            if (!await IsJava8Server64BitAsync(java, cancellationToken)) continue;
             var javaw = Path.Combine(Path.GetDirectoryName(java)!, "javaw.exe");
             return new JavaRuntimeInstallation(java, File.Exists(javaw) ? javaw : java);
         }
         return null;
     }
 
-    private async Task<JavaRuntimeInstallation?> FindSystemJava8Async(CancellationToken cancellationToken)
-    {
-        var candidates = new List<string>();
-        var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
-        if (!string.IsNullOrWhiteSpace(javaHome))
-            candidates.Add(Path.Combine(javaHome, "bin", "java.exe"));
-
-        try
-        {
-            using var where = new Process
-            {
-                StartInfo = new ProcessStartInfo("where.exe", "java.exe")
-                {
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
-            };
-            where.Start();
-            var output = await where.StandardOutput.ReadToEndAsync(cancellationToken);
-            await where.WaitForExitAsync(cancellationToken);
-            if (where.ExitCode == 0)
-                candidates.AddRange(output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
-        }
-        catch
-        {
-            // PATH lookup is best-effort. Managed Java is the fallback.
-        }
-
-        foreach (var java in candidates.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!await IsJava8Async(java, cancellationToken)) continue;
-            var javaw = Path.Combine(Path.GetDirectoryName(java)!, "javaw.exe");
-            return new JavaRuntimeInstallation(java, File.Exists(javaw) ? javaw : java);
-        }
-        return null;
-    }
-
-    private static async Task<bool> IsJava8Async(string executable, CancellationToken cancellationToken)
+    private static async Task<bool> IsJava8Server64BitAsync(string executable, CancellationToken cancellationToken)
     {
         try
         {
@@ -106,9 +64,12 @@ internal sealed class JavaRuntimeService
             var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
             await process.WaitForExitAsync(cancellationToken);
             var versionText = (await stdout) + "\n" + (await stderr);
-            return process.ExitCode == 0 &&
-                   (versionText.Contains("version \"1.8", StringComparison.OrdinalIgnoreCase) ||
-                    versionText.Contains("version \"8", StringComparison.OrdinalIgnoreCase));
+            var isJava8 = process.ExitCode == 0 &&
+                          (versionText.Contains("version \"1.8", StringComparison.OrdinalIgnoreCase) ||
+                           versionText.Contains("version \"8", StringComparison.OrdinalIgnoreCase));
+            var is64Bit = versionText.Contains("64-Bit", StringComparison.OrdinalIgnoreCase);
+            var isServerVm = versionText.Contains("Server VM", StringComparison.OrdinalIgnoreCase);
+            return isJava8 && is64Bit && isServerVm;
         }
         catch
         {
