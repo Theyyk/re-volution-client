@@ -9,6 +9,7 @@ internal sealed class MainForm : Form
 {
     private const string DefaultManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.json";
     private const string ManifestUrlEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_URL";
+    private const string ManifestFileEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_FILE";
 
     private readonly TextBox _username = new() { Left = 142, Top = 22, Width = 250 };
     private readonly TextBox _password = new() { Left = 142, Top = 56, Width = 250, UseSystemPasswordChar = true };
@@ -50,7 +51,8 @@ internal sealed class MainForm : Form
         {
             using var http = CreateHttpClient();
             var manifestClient = new ManifestClient(http);
-            var manifest = await LoadManifestAsync(manifestClient, _operation!.Token);
+            var manifestSource = await LoadManifestAsync(manifestClient, _operation!.Token);
+            var manifest = manifestSource.Manifest;
             var auth = new AuthApiClient(http);
             _status.Text = register ? "Создаю аккаунт RE:volution…" : "Выполняю вход в RE:volution…";
             _session = register
@@ -99,14 +101,15 @@ internal sealed class MainForm : Form
             var paths = new LauncherPaths(installRoot);
             var progress = new Progress<string>(message => _status.Text = message);
             var manifestClient = new ManifestClient(http);
-            var manifest = await LoadManifestAsync(manifestClient, _operation.Token);
+            var manifestSource = await LoadManifestAsync(manifestClient, _operation.Token);
+            var manifest = manifestSource.Manifest;
             var minecraft = new MinecraftClientService(http, paths);
             var bootstrap = new ClientBootstrapService(
                 paths,
                 new JavaRuntimeService(http, paths),
                 minecraft,
                 new BundledPayloadService(paths),
-                new ManagedFileService(http, paths),
+                new ManagedFileService(http, paths, manifestSource.AllowLocalManagedFiles),
                 new ClientConfigService(paths));
 
             var result = await bootstrap.PrepareAsync(manifest, progress, _operation.Token);
@@ -171,14 +174,26 @@ internal sealed class MainForm : Form
         _play.Enabled = !busy && _session is not null;
     }
 
-    private static Task<ClientManifest> LoadManifestAsync(ManifestClient manifestClient, CancellationToken cancellationToken)
+    private static async Task<ManifestSource> LoadManifestAsync(ManifestClient manifestClient, CancellationToken cancellationToken)
     {
+        var manifestFile = Environment.GetEnvironmentVariable(ManifestFileEnvironmentVariable);
         var manifestUrl = Environment.GetEnvironmentVariable(ManifestUrlEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(manifestFile) && !string.IsNullOrWhiteSpace(manifestUrl))
+            throw new InvalidDataException($"Use only one of {ManifestFileEnvironmentVariable} or {ManifestUrlEnvironmentVariable}.");
+
+        if (!string.IsNullOrWhiteSpace(manifestFile))
+        {
+            var manifest = await manifestClient.GetLocalAsync(manifestFile, cancellationToken);
+            if (!manifest.DevelopmentOnly)
+                throw new InvalidDataException("A local manifest override must set developmentOnly=true.");
+            return new ManifestSource(manifest, AllowLocalManagedFiles: true);
+        }
+
         if (string.IsNullOrWhiteSpace(manifestUrl))
             manifestUrl = DefaultManifestUrl;
         if (!Uri.TryCreate(manifestUrl, UriKind.Absolute, out var uri))
             throw new InvalidDataException($"{ManifestUrlEnvironmentVariable} is not a valid absolute URL.");
-        return manifestClient.GetAsync(uri, cancellationToken);
+        return new ManifestSource(await manifestClient.GetAsync(uri, cancellationToken), AllowLocalManagedFiles: false);
     }
 
     protected override void Dispose(bool disposing)
@@ -190,4 +205,6 @@ internal sealed class MainForm : Form
         }
         base.Dispose(disposing);
     }
+
+    private sealed record ManifestSource(ClientManifest Manifest, bool AllowLocalManagedFiles);
 }
