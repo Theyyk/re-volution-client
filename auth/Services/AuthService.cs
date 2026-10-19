@@ -82,5 +82,10 @@ internal sealed class AuthService
     private static bool IsTokenShapeValid(string token) => token.Length is >= 40 and <= 128;
 }
 
-internal sealed class UsernameTakenException : Exception;
-internal sealed class InvalidCredentialsException : Exception;
+internal sealed class UsernameTakenException : Exception
+{
+}
+
+internal sealed class InvalidCredentialsException : Exception
+{
+}
