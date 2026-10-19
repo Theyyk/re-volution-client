@@ -40,6 +40,10 @@ internal sealed class AuthApiClient
             throw new InvalidOperationException("Неверное имя пользователя или пароль.");
         if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             throw new InvalidOperationException("Это имя пользователя уже занято.");
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            throw new InvalidOperationException("Слишком много попыток. Подождите минуту и попробуйте снова.");
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            throw new InvalidOperationException("Проверьте имя пользователя и пароль.");
         response.EnsureSuccessStatusCode();
 
         if (response.Content.Headers.ContentLength is > MaximumResponseBytes)
@@ -88,9 +92,9 @@ internal sealed class AuthApiClient
     private static void ValidateCredentials(string username, string password)
     {
         var name = username.Trim();
-        if (name.Length is < 3 or > 32) throw new InvalidDataException("Имя пользователя должно содержать от 3 до 32 символов.");
-        if (!name.All(ch => char.IsLetterOrDigit(ch) || ch is '_' or '-'))
-            throw new InvalidDataException("Имя пользователя может содержать только буквы, цифры, '_' и '-'.");
+        if (name.Length is < 3 or > 16) throw new InvalidDataException("Имя пользователя должно содержать от 3 до 16 символов.");
+        if (!name.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_'))
+            throw new InvalidDataException("Имя пользователя может содержать только латинские буквы, цифры и '_'.");
         if (password.Length is < 8 or > 128) throw new InvalidDataException("Пароль должен содержать от 8 до 128 символов.");
     }
 }
