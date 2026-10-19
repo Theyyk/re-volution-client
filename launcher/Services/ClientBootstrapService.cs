@@ -1,3 +1,4 @@
+using System.Net;
 using REvolutionClient.Launcher.Infrastructure;
 using REvolutionClient.Launcher.Model;
 
@@ -64,10 +65,26 @@ internal sealed class ClientBootstrapService
         if (manifest.Minecraft.MemoryMb is < 1024 or > 16384) throw new InvalidDataException("Minecraft memory setting is out of range.");
         if (string.IsNullOrWhiteSpace(manifest.Server.Host)) throw new InvalidDataException("Server host is missing.");
         if (manifest.Server.Port is < 1 or > 65535) throw new InvalidDataException("Server port is invalid.");
-        if (manifest.Files.Count(file => file.Role == ManagedFileRoles.GameplayMod) > 1)
-            throw new InvalidDataException("Manifest may define only one gameplay mod.");
-        if (manifest.Files.Count(file => file.Role == ManagedFileRoles.ClientMod) > 1)
-            throw new InvalidDataException("Manifest may define only one client mod.");
+
+        var gameplayCount = manifest.Files.Count(file => file.Role == ManagedFileRoles.GameplayMod);
+        var clientCount = manifest.Files.Count(file => file.Role == ManagedFileRoles.ClientMod);
+        if (gameplayCount > 1) throw new InvalidDataException("Manifest may define only one gameplay mod.");
+        if (clientCount > 1) throw new InvalidDataException("Manifest may define only one client mod.");
+
+        if (manifest.DevelopmentOnly) return;
+
+        if (!Uri.TryCreate(manifest.Auth.BaseUrl, UriKind.Absolute, out var authUri) || authUri.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidDataException("Production auth.baseUrl must use HTTPS.");
+        if (IsLoopbackHost(manifest.Server.Host))
+            throw new InvalidDataException("Production server host must not be loopback.");
+        if (gameplayCount != 1 || clientCount != 1)
+            throw new InvalidDataException("Production manifest must manage exactly one gameplay mod and one client mod.");
+    }
+
+    private static bool IsLoopbackHost(string host)
+    {
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return IPAddress.TryParse(host, out var address) && IPAddress.IsLoopback(address);
     }
 }
 
