@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.multiplayer.GuiConnecting;
+import net.minecraft.client.multiplayer.ServerData;
 import java.io.IOException;
 
 final class RevolutionMainMenu extends GuiScreen {
@@ -27,7 +28,13 @@ final class RevolutionMainMenu extends GuiScreen {
     protected void actionPerformed(GuiButton button) throws IOException {
         if (button.id == PLAY_BUTTON && config.isConfigured()) {
             Minecraft minecraft = Minecraft.getMinecraft();
-            minecraft.displayGuiScreen(new GuiConnecting(this, minecraft, config.host(), config.port()));
+            ServerData server = new ServerData(
+                "RE:volution",
+                config.host() + ":" + config.port(),
+                false
+            );
+            server.setResourceMode(ServerData.ServerResourceMode.ENABLED);
+            minecraft.displayGuiScreen(new GuiConnecting(this, minecraft, server));
         }
     }
 
