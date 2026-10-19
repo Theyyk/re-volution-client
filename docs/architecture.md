@@ -9,17 +9,42 @@
 
 The public gameplay repository `Theyyk/re-volution-mod` is outside this boundary and must not be changed for client-distribution work.
 
+## Distribution goal
+
+The supported player flow for v1.0.0 is intentionally simple:
+
+1. download `REvolutionClient.exe`;
+2. run it;
+3. let the launcher prepare or repair the complete client installation;
+4. press Play.
+
+The player must not need to install Java, Forge, a Minecraft profile, mods, or client configuration manually.
+
 ## Launcher responsibilities
 
+- be distributed as a Windows `.exe`;
 - retrieve and validate a versioned manifest;
 - keep downloads within the configured installation root;
 - verify file size and SHA-256 before replacing installed files;
 - prepare the required Java/Minecraft/Forge/client files;
+- detect a usable 64-bit Java 8 runtime;
+- if a compatible Java 8 runtime is unavailable or invalid, download the pinned managed Java 8 runtime declared by the distribution configuration;
+- verify the managed Java runtime before use;
+- keep the managed runtime private to RE:volution Client and do not modify the system `PATH`, `JAVA_HOME`, or global Java installation;
+- launch Minecraft with the selected verified Java 8 executable;
 - start Minecraft with the prepared profile;
 - never access MongoDB or the private Admin API;
 - never treat a server address as a secret.
 
 The launcher must not embed gameplay logic.
+
+## Managed Java policy
+
+RE:volution Client owns the Java runtime used to launch Minecraft when a suitable existing Java 8 installation cannot be trusted or used.
+
+The managed runtime is version-pinned, downloaded only from the configured trusted distribution source, integrity-checked before activation, and stored under the RE:volution Client installation root. A partially downloaded or failed runtime must never become the active runtime.
+
+System Java discovery is an optimization only. Correct launch behavior must not depend on the player having Java installed globally.
 
 ## Client mod responsibilities
 
