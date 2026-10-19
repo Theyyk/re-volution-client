@@ -56,7 +56,8 @@
           "path": { "type": "string", "minLength": 1 },
           "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
           "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
-          "size": { "type": "integer", "minimum": 1 }
+          "size": { "type": "integer", "minimum": 1 },
+          "role": { "enum": ["gameplay-mod", "client-mod"] }
         }
       }
     }
