@@ -6,13 +6,18 @@ namespace REvolutionClient.Launcher.Services;
 
 internal sealed class ClientConfigService
 {
-    private static readonly IReadOnlyDictionary<string, string> DefaultOptions = new Dictionary<string, string>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<string, string> DefaultOptionsV1 = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["lang"] = "ru_ru",
         ["guiScale"] = "2",
         ["soundCategory_music"] = "0.0",
         ["key_key.loadToolbarActivator"] = "0",
         ["key_key.saveToolbarActivator"] = "0"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> DefaultOptionsV2 = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["soundCategory_master"] = "0.3"
     };
 
     private readonly LauncherPaths _paths;
@@ -47,16 +52,36 @@ internal sealed class ClientConfigService
 
     private async Task ApplyDefaultOptionsOnceAsync(CancellationToken cancellationToken)
     {
-        var marker = Path.Combine(_paths.Game, ".revolution-client-defaults-v1");
+        Directory.CreateDirectory(_paths.Game);
+
+        await ApplyDefaultsVersionAsync(
+            ".revolution-client-defaults-v1",
+            "defaultsVersion=1\n",
+            DefaultOptionsV1,
+            cancellationToken);
+
+        await ApplyDefaultsVersionAsync(
+            ".revolution-client-defaults-v2",
+            "defaultsVersion=2\n",
+            DefaultOptionsV2,
+            cancellationToken);
+    }
+
+    private async Task ApplyDefaultsVersionAsync(
+        string markerName,
+        string markerContent,
+        IReadOnlyDictionary<string, string> options,
+        CancellationToken cancellationToken)
+    {
+        var marker = Path.Combine(_paths.Game, markerName);
         if (File.Exists(marker)) return;
 
-        Directory.CreateDirectory(_paths.Game);
         var optionsPath = Path.Combine(_paths.Game, "options.txt");
         var lines = File.Exists(optionsPath)
             ? (await File.ReadAllLinesAsync(optionsPath, cancellationToken)).ToList()
             : new List<string>();
 
-        foreach (var option in DefaultOptions)
+        foreach (var option in options)
         {
             var prefix = option.Key + ":";
             var index = lines.FindIndex(line => line.StartsWith(prefix, StringComparison.Ordinal));
@@ -72,7 +97,7 @@ internal sealed class ClientConfigService
         File.Move(optionsTemporary, optionsPath, true);
 
         var markerTemporary = marker + ".tmp";
-        await File.WriteAllTextAsync(markerTemporary, "defaultsVersion=1\n", new UTF8Encoding(false), cancellationToken);
+        await File.WriteAllTextAsync(markerTemporary, markerContent, new UTF8Encoding(false), cancellationToken);
         File.Move(markerTemporary, marker, true);
     }
 }
