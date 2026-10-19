@@ -7,6 +7,55 @@ on:
     branches: [ main ]
 
 jobs:
+  auth-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Auth API
+        run: dotnet build auth/REvolutionClient.Auth.csproj -c Release
+      - name: Smoke test Auth API
+        shell: bash
+        run: |
+          set -euo pipefail
+          export REVOLUTION_AUTH_DB="$RUNNER_TEMP/revolution-auth-ci.db"
+          dotnet run --project auth/REvolutionClient.Auth.csproj -c Release --no-build > "$RUNNER_TEMP/revolution-auth.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:25567/health >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            cat "$RUNNER_TEMP/revolution-auth.log"
+            exit 1
+          fi
+
+          register_code=$(curl --silent --show-error -o "$RUNNER_TEMP/register.json" -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"CiUser","password":"CiPassword123!"}' \
+            http://127.0.0.1:25567/api/v1/auth/register)
+          test "$register_code" = "200"
+
+          login_code=$(curl --silent --show-error -o "$RUNNER_TEMP/login.json" -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"ciuser","password":"CiPassword123!"}' \
+            http://127.0.0.1:25567/api/v1/auth/login)
+          test "$login_code" = "200"
+
+          duplicate_code=$(curl --silent --show-error -o "$RUNNER_TEMP/duplicate.json" -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"CIUSER","password":"AnotherPassword123!"}' \
+            http://127.0.0.1:25567/api/v1/auth/register)
+          test "$duplicate_code" = "409"
+
   client-mod:
     runs-on: ubuntu-latest
     steps:
