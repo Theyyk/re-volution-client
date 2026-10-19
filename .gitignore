@@ -10,3 +10,5 @@ launcher/publish/
 *.log
 runtime/
 client-install/
+*.private.pem
+manifest/keys/private/
