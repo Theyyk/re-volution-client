@@ -38,10 +38,17 @@ internal sealed class ServerManifest
     public int Port { get; init; } = 25565;
 }
 
+internal static class ManagedFileRoles
+{
+    public const string GameplayMod = "gameplay-mod";
+    public const string ClientMod = "client-mod";
+}
+
 internal sealed class ManagedFileManifest
 {
     public string Path { get; init; } = string.Empty;
     public string DownloadUrl { get; init; } = string.Empty;
     public string Sha256 { get; init; } = string.Empty;
     public long Size { get; init; }
+    public string Role { get; init; } = string.Empty;
 }
