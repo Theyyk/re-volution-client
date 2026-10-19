@@ -2,8 +2,8 @@ package com.revolution.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiConnecting;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.multiplayer.GuiConnecting;
 import java.io.IOException;
 
 final class RevolutionMainMenu extends GuiScreen {
