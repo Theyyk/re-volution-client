@@ -6,26 +6,47 @@ namespace REvolutionClient.Launcher.Services;
 internal sealed class ClientBootstrapService
 {
     private readonly LauncherPaths _paths;
-    private readonly ManifestClient _manifestClient;
     private readonly JavaRuntimeService _javaRuntime;
+    private readonly MinecraftClientService _minecraft;
+    private readonly BundledPayloadService _payload;
+    private readonly ManagedFileService _managedFiles;
+    private readonly ClientConfigService _config;
 
-    public ClientBootstrapService(LauncherPaths paths, ManifestClient manifestClient, JavaRuntimeService javaRuntime)
+    public ClientBootstrapService(
+        LauncherPaths paths,
+        JavaRuntimeService javaRuntime,
+        MinecraftClientService minecraft,
+        BundledPayloadService payload,
+        ManagedFileService managedFiles,
+        ClientConfigService config)
     {
         _paths = paths;
-        _manifestClient = manifestClient;
         _javaRuntime = javaRuntime;
+        _minecraft = minecraft;
+        _payload = payload;
+        _managedFiles = managedFiles;
+        _config = config;
     }
 
-    public async Task<BootstrapResult> PrepareAsync(Uri manifestUri, IProgress<string> progress, CancellationToken cancellationToken)
+    public async Task<BootstrapResult> PrepareAsync(ClientManifest manifest, IProgress<string> progress, CancellationToken cancellationToken)
     {
         _paths.EnsureCreated();
-        progress.Report("Получаю manifest…");
-        var manifest = await _manifestClient.GetAsync(manifestUri, cancellationToken);
         ValidateManifest(manifest);
+
         progress.Report("Проверяю Java 8…");
-        var javaExecutable = await _javaRuntime.EnsureJava8Async(manifest.Java, progress, cancellationToken);
-        progress.Report("Базовая проверка окружения завершена.");
-        return new BootstrapResult(manifest, javaExecutable);
+        var java = await _javaRuntime.EnsureJava8Async(manifest.Java, progress, cancellationToken);
+
+        var forgeVersionName = await _minecraft.EnsureInstalledAsync(manifest.Minecraft, java, progress, cancellationToken);
+
+        progress.Report("Проверяю моды RE:volution…");
+        await _payload.InstallAsync(progress, cancellationToken);
+        await _managedFiles.SyncAsync(manifest.Files, progress, cancellationToken);
+
+        progress.Report("Настраиваю подключение к серверу…");
+        await _config.WriteAsync(manifest.Server, cancellationToken);
+
+        progress.Report("Клиент готов к запуску.");
+        return new BootstrapResult(manifest, java, forgeVersionName);
     }
 
     private static void ValidateManifest(ClientManifest manifest)
@@ -33,9 +54,10 @@ internal sealed class ClientBootstrapService
         if (string.IsNullOrWhiteSpace(manifest.ProductVersion)) throw new InvalidDataException("Manifest productVersion is required.");
         if (manifest.Minecraft.Version != "1.12.2") throw new InvalidDataException("Unsupported Minecraft version.");
         if (manifest.Minecraft.ForgeVersion != "14.23.5.2859") throw new InvalidDataException("Unsupported Forge version.");
+        if (manifest.Minecraft.MemoryMb is < 1024 or > 16384) throw new InvalidDataException("Minecraft memory setting is out of range.");
         if (string.IsNullOrWhiteSpace(manifest.Server.Host)) throw new InvalidDataException("Server host is missing.");
         if (manifest.Server.Port is < 1 or > 65535) throw new InvalidDataException("Server port is invalid.");
     }
 }
 
-internal sealed record BootstrapResult(ClientManifest Manifest, string JavaExecutable);
+internal sealed record BootstrapResult(ClientManifest Manifest, JavaRuntimeInstallation Java, string ForgeVersionName);

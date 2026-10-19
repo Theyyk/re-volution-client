@@ -14,4 +14,15 @@
     <PublishTrimmed>false</PublishTrimmed>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CmlLib.Core" Version="4.0.6" />
+    <PackageReference Include="CmlLib.Core.Auth.Microsoft" Version="3.2.2" />
+    <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Payload\*.jar" LogicalName="REvolutionClient.Payload.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\manifest\bootstrap.dev.json" Link="Manifest\bootstrap.dev.json" LogicalName="REvolutionClient.Manifest.bootstrap.dev.json" />
+  </ItemGroup>
 </Project>

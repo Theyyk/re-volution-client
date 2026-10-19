@@ -3,6 +3,7 @@ namespace REvolutionClient.Launcher.Model;
 internal sealed class ClientManifest
 {
     public string ProductVersion { get; init; } = string.Empty;
+    public bool DevelopmentOnly { get; init; }
     public JavaRuntimeManifest Java { get; init; } = new();
     public MinecraftManifest Minecraft { get; init; } = new();
     public ServerManifest Server { get; init; } = new();
@@ -12,16 +13,17 @@ internal sealed class ClientManifest
 internal sealed class JavaRuntimeManifest
 {
     public int MajorVersion { get; init; } = 8;
+    public string Provider { get; init; } = "adoptium";
     public string DownloadUrl { get; init; } = string.Empty;
     public string Sha256 { get; init; } = string.Empty;
     public long Size { get; init; }
-    public string JavaRelativePath { get; init; } = "bin/javaw.exe";
 }
 
 internal sealed class MinecraftManifest
 {
     public string Version { get; init; } = "1.12.2";
     public string ForgeVersion { get; init; } = "14.23.5.2859";
+    public int MemoryMb { get; init; } = 4096;
 }
 
 internal sealed class ServerManifest

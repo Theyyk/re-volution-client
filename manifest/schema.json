@@ -6,25 +6,33 @@
   "required": ["productVersion", "java", "minecraft", "server", "files"],
   "properties": {
     "productVersion": { "type": "string", "minLength": 1 },
+    "developmentOnly": { "type": "boolean" },
     "java": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["majorVersion", "downloadUrl", "sha256", "size", "javaRelativePath"],
+      "required": ["majorVersion", "provider"],
       "properties": {
         "majorVersion": { "const": 8 },
+        "provider": { "enum": ["adoptium", "static"] },
         "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
         "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
-        "size": { "type": "integer", "minimum": 1 },
-        "javaRelativePath": { "type": "string", "minLength": 1 }
-      }
+        "size": { "type": "integer", "minimum": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "provider": { "const": "static" } } },
+          "then": { "required": ["downloadUrl", "sha256", "size"] }
+        }
+      ]
     },
     "minecraft": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "forgeVersion"],
+      "required": ["version", "forgeVersion", "memoryMb"],
       "properties": {
         "version": { "const": "1.12.2" },
-        "forgeVersion": { "const": "14.23.5.2859" }
+        "forgeVersion": { "const": "14.23.5.2859" },
+        "memoryMb": { "type": "integer", "minimum": 1024, "maximum": 16384 }
       }
     },
     "server": {

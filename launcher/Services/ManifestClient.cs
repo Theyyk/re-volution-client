@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using REvolutionClient.Launcher.Model;
 
@@ -21,6 +22,18 @@ internal sealed class ManifestClient
             throw new InvalidDataException("Manifest is too large.");
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await DeserializeBoundedAsync(source, cancellationToken);
+    }
+
+    public ClientManifest GetEmbedded(string resourceName)
+    {
+        using var source = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
+            ?? throw new InvalidDataException($"Embedded manifest resource '{resourceName}' is missing.");
+        return DeserializeBoundedAsync(source, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    private static async Task<ClientManifest> DeserializeBoundedAsync(Stream source, CancellationToken cancellationToken)
+    {
         using var limited = new MemoryStream(MaximumManifestBytes);
         var buffer = new byte[16 * 1024];
         var total = 0;

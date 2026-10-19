@@ -1,0 +1,18 @@
+{
+  "productVersion": "1.0.0",
+  "developmentOnly": true,
+  "java": {
+    "majorVersion": 8,
+    "provider": "adoptium"
+  },
+  "minecraft": {
+    "version": "1.12.2",
+    "forgeVersion": "14.23.5.2859",
+    "memoryMb": 4096
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 25566
+  },
+  "files": []
+}
