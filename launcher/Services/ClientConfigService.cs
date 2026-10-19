@@ -6,6 +6,15 @@ namespace REvolutionClient.Launcher.Services;
 
 internal sealed class ClientConfigService
 {
+    private static readonly IReadOnlyDictionary<string, string> DefaultOptions = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["lang"] = "ru_ru",
+        ["guiScale"] = "2",
+        ["soundCategory_music"] = "0.0",
+        ["key_key.loadToolbarActivator"] = "0",
+        ["key_key.saveToolbarActivator"] = "0"
+    };
+
     private readonly LauncherPaths _paths;
 
     public ClientConfigService(LauncherPaths paths) => _paths = paths;
@@ -15,6 +24,12 @@ internal sealed class ClientConfigService
         if (server.Host.IndexOfAny(new[] { '\r', '\n', '{', '}' }) >= 0)
             throw new InvalidDataException("Server host contains unsupported characters.");
 
+        await WriteServerConfigAsync(server, cancellationToken);
+        await ApplyDefaultOptionsOnceAsync(cancellationToken);
+    }
+
+    private async Task WriteServerConfigAsync(ServerManifest server, CancellationToken cancellationToken)
+    {
         var configDirectory = Path.Combine(_paths.Game, "config");
         Directory.CreateDirectory(configDirectory);
         var target = Path.Combine(configDirectory, "revolutionclient.cfg");
@@ -28,5 +43,36 @@ internal sealed class ClientConfigService
             .ToString();
         await File.WriteAllTextAsync(temporary, content, new UTF8Encoding(false), cancellationToken);
         File.Move(temporary, target, true);
+    }
+
+    private async Task ApplyDefaultOptionsOnceAsync(CancellationToken cancellationToken)
+    {
+        var marker = Path.Combine(_paths.Game, ".revolution-client-defaults-v1");
+        if (File.Exists(marker)) return;
+
+        Directory.CreateDirectory(_paths.Game);
+        var optionsPath = Path.Combine(_paths.Game, "options.txt");
+        var lines = File.Exists(optionsPath)
+            ? (await File.ReadAllLinesAsync(optionsPath, cancellationToken)).ToList()
+            : new List<string>();
+
+        foreach (var option in DefaultOptions)
+        {
+            var prefix = option.Key + ":";
+            var index = lines.FindIndex(line => line.StartsWith(prefix, StringComparison.Ordinal));
+            var replacement = prefix + option.Value;
+            if (index >= 0)
+                lines[index] = replacement;
+            else
+                lines.Add(replacement);
+        }
+
+        var optionsTemporary = optionsPath + ".tmp";
+        await File.WriteAllLinesAsync(optionsTemporary, lines, new UTF8Encoding(false), cancellationToken);
+        File.Move(optionsTemporary, optionsPath, true);
+
+        var markerTemporary = marker + ".tmp";
+        await File.WriteAllTextAsync(markerTemporary, "defaultsVersion=1\n", new UTF8Encoding(false), cancellationToken);
+        File.Move(markerTemporary, marker, true);
     }
 }
