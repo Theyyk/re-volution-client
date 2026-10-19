@@ -39,7 +39,10 @@ internal sealed class ClientBootstrapService
         var forgeVersionName = await _minecraft.EnsureInstalledAsync(manifest.Minecraft, java, progress, cancellationToken);
 
         progress.Report("Проверяю моды RE:volution…");
-        await _payload.InstallAsync(progress, cancellationToken);
+        var hasManagedGameplayMod = manifest.Files.Any(file => file.Role == ManagedFileRoles.GameplayMod);
+        var hasManagedClientMod = manifest.Files.Any(file => file.Role == ManagedFileRoles.ClientMod);
+        if (!hasManagedGameplayMod || !hasManagedClientMod)
+            await _payload.InstallAsync(progress, cancellationToken);
         await _managedFiles.SyncAsync(manifest.Files, progress, cancellationToken);
 
         progress.Report("Настраиваю подключение к серверу…");
@@ -58,6 +61,10 @@ internal sealed class ClientBootstrapService
         if (manifest.Minecraft.MemoryMb is < 1024 or > 16384) throw new InvalidDataException("Minecraft memory setting is out of range.");
         if (string.IsNullOrWhiteSpace(manifest.Server.Host)) throw new InvalidDataException("Server host is missing.");
         if (manifest.Server.Port is < 1 or > 65535) throw new InvalidDataException("Server port is invalid.");
+        if (manifest.Files.Count(file => file.Role == ManagedFileRoles.GameplayMod) > 1)
+            throw new InvalidDataException("Manifest may define only one gameplay mod.");
+        if (manifest.Files.Count(file => file.Role == ManagedFileRoles.ClientMod) > 1)
+            throw new InvalidDataException("Manifest may define only one client mod.");
     }
 }
 
