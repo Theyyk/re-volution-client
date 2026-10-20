@@ -7,7 +7,7 @@ namespace REvolutionClient.Launcher.UI;
 
 internal sealed class MainForm : Form
 {
-    private const string DefaultManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.json";
+    private const string DefaultManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.production.signed.json";
     private const string ManifestUrlEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_URL";
     private const string ManifestFileEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_FILE";
 
