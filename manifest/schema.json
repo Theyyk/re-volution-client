@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RE:volution Client manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["productVersion", "developmentOnly", "auth", "java", "minecraft", "server", "files"],
+  "properties": {
+    "productVersion": { "type": "string", "minLength": 1 },
+    "developmentOnly": { "type": "boolean" },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseUrl"],
+      "properties": {
+        "baseUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "java": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["majorVersion", "provider"],
+      "properties": {
+        "majorVersion": { "const": 8 },
+        "provider": { "enum": ["adoptium", "static"] },
+        "downloadUrl": { "type": "string", "format": "uri" },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "minecraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "forgeVersion", "memoryMb"],
+      "properties": {
+        "version": { "const": "1.12.2" },
+        "forgeVersion": { "const": "14.23.5.2859" },
+        "memoryMb": { "type": "integer", "minimum": 1024, "maximum": 16384 }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "downloadUrl", "sha256", "size"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "downloadUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+          "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+          "size": { "type": "integer", "minimum": 1 },
+          "role": { "enum": ["gameplay-mod", "client-mod"] }
+        }
+      }
+    }
+  }
+}

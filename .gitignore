@@ -1,0 +1,29 @@
+.idea/
+.vs/
+**/bin/
+**/obj/
+**/build/
+**/.gradle/
+launcher/publish/
+*.user
+*.suo
+*.log
+runtime/
+client-install/
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+secrets/
+Secrets/
+*.private.pem
+*.key
+*.pfx
+*.p12
+manifest/keys/private/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3

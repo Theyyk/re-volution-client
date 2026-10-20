@@ -1,0 +1,9 @@
+{
+  "keys": [
+    {
+      "keyId": "prod-2026-01",
+      "algorithm": "ecdsa-p256-sha256",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZpFypF6zTfaUfo6AtSDhkdrbkZr\nQy3vnBeC32Lz4B0zumy8U1qoJkvjrQZSJxwzbLS6aRV67sndntbsJIc+pA==\n-----END PUBLIC KEY-----"
+    }
+  ]
+}
