@@ -2,7 +2,7 @@ name: Build RE:volution Client
 
 on:
   push:
-    branches: [ main, 'feature/**', 'release/**' ]
+    branches: [ main, 'feature/**', 'release/**', 'fix/**' ]
   pull_request:
     branches: [ main ]
 
@@ -117,15 +117,40 @@ jobs:
         with:
           name: RE-volution-Client-Mod
           path: launcher/Payload
-      - name: Download and verify gameplay mod v1.3.2
+      - name: Download gameplay mod from production signed manifest
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path launcher/Payload | Out-Null
-          $target = 'launcher/Payload/RE-volution-1.3.2.jar'
-          Invoke-WebRequest -Uri 'https://github.com/Theyyk/re-volution-mod/releases/download/v1.3.2/RE-volution-1.3.2.jar' -OutFile $target
-          $actual = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()
-          $expected = '46624637e8d9c73947cef69ed9832a2f35f66abf81a647503254cd5a71a46d02'
-          if ($actual -ne $expected) { throw "Gameplay mod SHA-256 mismatch: $actual" }
+
+          $manifestUrl = 'https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.production.signed.json'
+          $envelopePath = Join-Path $env:RUNNER_TEMP 'manifest.production.signed.json'
+          Invoke-WebRequest -Uri $manifestUrl -OutFile $envelopePath
+
+          $envelope = Get-Content -Raw $envelopePath | ConvertFrom-Json
+          if ([string]::IsNullOrWhiteSpace($envelope.payload)) { throw 'Production signed manifest has no payload.' }
+          $payloadJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$envelope.payload))
+          $manifest = $payloadJson | ConvertFrom-Json
+          $gameplay = @($manifest.files | Where-Object { $_.role -eq 'gameplay-mod' })
+          if ($gameplay.Count -ne 1) { throw "Expected exactly one gameplay-mod in production manifest, got $($gameplay.Count)." }
+
+          $entry = $gameplay[0]
+          if ([string]::IsNullOrWhiteSpace($entry.path) -or [string]::IsNullOrWhiteSpace($entry.downloadUrl) -or [string]::IsNullOrWhiteSpace($entry.sha256)) {
+            throw 'Gameplay manifest entry is incomplete.'
+          }
+          $fileName = Split-Path -Leaf ([string]$entry.path)
+          if (-not $fileName.EndsWith('.jar', [StringComparison]::OrdinalIgnoreCase)) { throw "Gameplay payload is not a JAR: $fileName" }
+          $target = Join-Path 'launcher/Payload' $fileName
+          Invoke-WebRequest -Uri ([string]$entry.downloadUrl) -OutFile $target
+
+          $actualHash = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()
+          $expectedHash = ([string]$entry.sha256).ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) { throw "Gameplay mod SHA-256 mismatch: expected=$expectedHash actual=$actualHash" }
+          if ($null -ne $entry.size -and [int64]$entry.size -gt 0) {
+            $actualSize = (Get-Item $target).Length
+            if ($actualSize -ne [int64]$entry.size) { throw "Gameplay mod size mismatch: expected=$($entry.size) actual=$actualSize" }
+          }
+          Write-Host "Using gameplay payload from production manifest: $fileName ($actualHash)"
       - name: Build launcher
         run: dotnet build launcher/REvolutionClient.Launcher.csproj -c Release
       - name: Publish single-file EXE
