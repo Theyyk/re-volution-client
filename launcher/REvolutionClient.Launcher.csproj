@@ -15,6 +15,12 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(LauncherChannel)' == 'Dev'">
+    <AssemblyName>REvolutionClient_dev</AssemblyName>
+    <DefineConstants>$(DefineConstants);DEV_LAUNCHER</DefineConstants>
+    <Product>RE:volution Client DEV</Product>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />

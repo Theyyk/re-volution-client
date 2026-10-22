@@ -1,5 +1,6 @@
 using System.Text.Json;
 using REvolutionClient.Launcher.Model;
+using REvolutionClient.Launcher.Infrastructure;
 
 namespace REvolutionClient.Launcher.Services;
 
@@ -10,9 +11,7 @@ internal sealed class LauncherSettingsStore
 
     public LauncherSettingsStore()
     {
-        var settingsRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "REvolutionClient");
+        var settingsRoot = LauncherProfile.SettingsRoot;
         _settingsFile = Path.Combine(settingsRoot, "launcher-settings.json");
     }
 
@@ -55,6 +54,7 @@ internal sealed class LauncherSettingsStore
         if (ContainsCyrillic(full))
             throw new InvalidDataException(
                 "Путь установки содержит кириллицу. Выберите папку без кириллических символов, например E:\\REvolutionClient.");
+        LauncherProfile.ValidateInstallRoot(full);
         return full;
     }
 

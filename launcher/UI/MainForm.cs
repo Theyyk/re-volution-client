@@ -7,9 +7,9 @@ namespace REvolutionClient.Launcher.UI;
 
 internal sealed class MainForm : Form
 {
-    private const string DefaultManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.production.signed.json";
-    private const string ManifestUrlEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_URL";
-    private const string ManifestFileEnvironmentVariable = "REVOLUTION_CLIENT_MANIFEST_FILE";
+    private const string DefaultManifestUrl = LauncherProfile.ManifestUrl;
+    private const string ManifestUrlEnvironmentVariable = LauncherProfile.EnvironmentPrefix + "_MANIFEST_URL";
+    private const string ManifestFileEnvironmentVariable = LauncherProfile.EnvironmentPrefix + "_MANIFEST_FILE";
 
     private readonly TextBox _username = new() { Left = 142, Top = 22, Width = 250 };
     private readonly TextBox _password = new() { Left = 142, Top = 56, Width = 250, UseSystemPasswordChar = true };
@@ -26,7 +26,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "RE:volution Client";
+        Text = LauncherProfile.DisplayName;
         ClientSize = new Size(660, 250);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -37,6 +37,8 @@ internal sealed class MainForm : Form
         Controls.AddRange(new Control[] { _username, _password, _login, _register, _installRoot, _browse, _status, _play });
 
         _installRoot.Text = _settingsStore.Load().InstallRoot;
+        _installRoot.ReadOnly = LauncherProfile.IsDevelopment;
+        _browse.Visible = !LauncherProfile.IsDevelopment;
         _login.Click += (_, _) => AuthenticateAsync(register: false);
         _register.Click += (_, _) => AuthenticateAsync(register: true);
         _browse.Click += OnBrowse;
@@ -186,6 +188,7 @@ internal sealed class MainForm : Form
             var manifest = await manifestClient.GetLocalAsync(manifestFile, cancellationToken);
             if (!manifest.DevelopmentOnly)
                 throw new InvalidDataException("A local manifest override must set developmentOnly=true.");
+            LauncherProfile.ValidateManifest(manifest);
             return new ManifestSource(manifest, AllowLocalManagedFiles: true);
         }
 
@@ -193,7 +196,17 @@ internal sealed class MainForm : Form
             manifestUrl = DefaultManifestUrl;
         if (!Uri.TryCreate(manifestUrl, UriKind.Absolute, out var uri))
             throw new InvalidDataException($"{ManifestUrlEnvironmentVariable} is not a valid absolute URL.");
-        return new ManifestSource(await manifestClient.GetAsync(uri, cancellationToken), AllowLocalManagedFiles: false);
+        if (LauncherProfile.IsDevelopment)
+        {
+            var builder = new UriBuilder(uri);
+            builder.Query = string.IsNullOrEmpty(builder.Query)
+                ? "dev_refresh=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                : builder.Query.TrimStart('?') + "&dev_refresh=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            uri = builder.Uri;
+        }
+        var remoteManifest = await manifestClient.GetAsync(uri, cancellationToken);
+        LauncherProfile.ValidateManifest(remoteManifest);
+        return new ManifestSource(remoteManifest, AllowLocalManagedFiles: false);
     }
 
     protected override void Dispose(bool disposing)

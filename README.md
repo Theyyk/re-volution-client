@@ -6,6 +6,8 @@
 
 [Архитектура](docs/architecture.md) · [Launcher runtime](docs/launcher-runtime.md) · [Auth API](docs/auth-api.md)
 
+Отдельные PROD/DEV EXE, установки и каналы обновления: [DEV channel](docs/dev-channel.md).
+
 ## Что входит в RE:volution Client
 
 ### Launcher

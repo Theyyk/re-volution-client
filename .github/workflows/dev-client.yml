@@ -1,0 +1,95 @@
+name: Publish DEV client channel
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+concurrency:
+  group: dev-client-channel
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.check.outputs.value }}
+    steps:
+      - name: Check whether the DEV sources changed
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gameplay=$(gh api 'repos/Theyyk/re-volution-mod/actions/workflows/release.yml/runs?branch=develop&event=push&status=success&per_page=1' --jq '.workflow_runs[0].head_sha')
+          client=$(gh api repos/Theyyk/re-volution-client/commits/develop --jq '.sha')
+          changed=true
+          if [ "$EVENT_NAME" = schedule ] && gh release download dev-latest --repo "$GITHUB_REPOSITORY" --pattern manifest.dev.json --dir "$RUNNER_TEMP/channel"; then
+            old_gameplay=$(jq -r '.source.gameplaySha' "$RUNNER_TEMP/channel/manifest.dev.json")
+            old_client=$(jq -r '.source.clientSha' "$RUNNER_TEMP/channel/manifest.dev.json")
+            if [ "$gameplay" = "$old_gameplay" ] && [ "$client" = "$old_client" ]; then changed=false; fi
+          fi
+          echo "value=$changed" >> "$GITHUB_OUTPUT"
+
+  verify-dev:
+    needs: changed
+    if: needs.changed.outputs.value == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check DEV isolation and manifest integrity guards
+        run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Dev
+      - name: Check unchanged default PROD profile
+        run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Prod
+      - name: Publish isolated DEV launcher
+        run: dotnet publish launcher/REvolutionClient.Launcher.csproj -c Release -p:LauncherChannel=Dev -o launcher/publish-dev
+      - uses: actions/upload-artifact@v4
+        with:
+          name: REvolutionClient-dev-win-x64
+          path: launcher/publish-dev/REvolutionClient_dev.exe
+          if-no-files-found: error
+
+  publish-dev:
+    needs: verify-dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.6.4'
+      - name: Build current DEV client mod
+        run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon
+      - name: Publish latest successful develop payload and DEV manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-dev.py --client-directory mod/build/libs --output "$RUNNER_TEMP/dev-channel"
+      - uses: actions/download-artifact@v4
+        with:
+          name: REvolutionClient-dev-win-x64
+          path: dev-launcher
+      - name: Publish DEV launcher download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload dev-latest dev-launcher/REvolutionClient_dev.exe --repo "$GITHUB_REPOSITORY" --clobber

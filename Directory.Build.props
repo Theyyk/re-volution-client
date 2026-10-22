@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <LauncherChannel Condition="'$(LauncherChannel)' == ''">Prod</LauncherChannel>
+    <!-- Never reuse a DEV assembly/deps file while building the PROD profile. -->
+    <BaseOutputPath>bin\$(LauncherChannel)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj\$(LauncherChannel)\</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**;**/publish*/**;**/install-dev/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

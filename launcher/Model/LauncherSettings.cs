@@ -8,5 +8,5 @@ internal sealed class LauncherSettings
 internal static class LauncherSettingsStoreDefaults
 {
     public static string DefaultInstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "REvolutionClient");
+        Infrastructure.LauncherProfile.DefaultInstallRoot;
 }

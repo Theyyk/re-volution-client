@@ -31,8 +31,9 @@ internal sealed class ClientBootstrapService
 
     public async Task<BootstrapResult> PrepareAsync(ClientManifest manifest, IProgress<string> progress, CancellationToken cancellationToken)
     {
-        _paths.EnsureCreated();
         ValidateManifest(manifest);
+        LauncherProfile.ValidateManifest(manifest);
+        _paths.EnsureCreated();
 
         progress.Report("Проверяю Java 8…");
         var java = await _javaRuntime.EnsureJava8Async(manifest.Java, progress, cancellationToken);

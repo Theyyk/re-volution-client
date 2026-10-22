@@ -5,6 +5,10 @@
 **/build/
 **/.gradle/
 launcher/publish/
+launcher/publish-dev/
+artifacts/
+**/install-dev/
+**/__pycache__/
 *.user
 *.suo
 *.log
