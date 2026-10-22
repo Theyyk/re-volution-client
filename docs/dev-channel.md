@@ -20,7 +20,7 @@ environment variable is needed. Its default URL is:
 | Installation | Existing user selection, unchanged | `install-dev` next to DEV EXE; fixed in UI and validated in code |
 | Runtime/game/downloads | Existing installation | All under `Dev\install-dev` |
 | Overrides | `REVOLUTION_CLIENT_MANIFEST_URL/FILE` | `REVOLUTION_CLIENT_DEV_MANIFEST_URL/FILE` |
-| Server | Existing stable manifest endpoint | `127.0.0.1:25566` (local Docker) |
+| Server | Existing stable manifest endpoint | `127.0.0.1:25568` (local Docker) |
 | Auth | Existing HTTPS endpoint | `http://127.0.0.1:25567/` (local Docker) |
 | Manifest | Trusted signed production envelope | HTTPS DEV channel, `developmentOnly=true`, exact SHA-256/size |
 

@@ -70,7 +70,7 @@ def publish(client_directory, output):
             "auth": {"baseUrl": "http://127.0.0.1:25567/"},
             "java": {"majorVersion": 8, "provider": "adoptium"},
             "minecraft": {"version": "1.12.2", "forgeVersion": "14.23.5.2859", "memoryMb": 4096},
-            "server": {"host": "127.0.0.1", "port": 25566},
+            "server": {"host": "127.0.0.1", "port": 25568},
             "files": [managed(gameplay, tag, "gameplay-mod"), managed(client, tag, "client-mod")],
             "source": {"gameplaySha": gameplay_sha, "clientSha": client_sha,
                        "gameplayBuild": run["html_url"], "channel": "develop"}}
