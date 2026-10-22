@@ -1,0 +1,10 @@
+# Allow only Auth source into the build context. Never send databases or secrets.
+**
+!REvolutionClient.Auth.csproj
+!Program.cs
+!Infrastructure/
+!Infrastructure/*.cs
+!Model/
+!Model/*.cs
+!Services/
+!Services/*.cs

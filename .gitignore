@@ -27,3 +27,8 @@ manifest/keys/private/
 *.db
 *.sqlite
 *.sqlite3
+launcher/Payload/
+launcher/Payload-backup/
+manifest/manifest.production.json
+manifest/manifest.production.signed.json
+manifest/runtime.local.json
