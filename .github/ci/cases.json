@@ -1,0 +1,31 @@
+{
+  "auth/Program.cs": [
+    "auth"
+  ],
+  "launcher/MainForm.cs": [
+    "mod",
+    "launcher"
+  ],
+  "mod/src/Client.java": [
+    "mod",
+    "launcher"
+  ],
+  "Directory.Build.props": [
+    "auth",
+    "signing",
+    "mod",
+    "launcher"
+  ],
+  "scripts/test-dev-channel.py": [
+    "mod",
+    "launcher"
+  ],
+  "manifest/bootstrap.dev.json": [
+    "signing",
+    "mod",
+    "launcher"
+  ],
+  "auth/REvolutionClient.Auth.csproj": [
+    "auth"
+  ]
+}

@@ -6,14 +6,54 @@ on:
   pull_request:
     branches: [ main ]
 
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) }}
+
 jobs:
-  auth-backend:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.changes.outputs.auth }}
+      signing: ${{ steps.changes.outputs.signing }}
+      mod: ${{ steps.changes.outputs.mod }}
+      launcher: ${{ steps.changes.outputs.launcher }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate all workflows with actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color -shellcheck= -pyflakes=
+      - name: Test change detection policy
+        run: python3 .github/ci/test_changes.py
+      - name: Test DEV selection and late-old-run watermark
+        run: python3 scripts/test-dev-channel.py
+      - name: Select affected components (manual/tag/unknown diff runs all)
+        id: changes
+        run: python3 .github/ci/changes.py
+
+  auth-backend:
+    needs: changes
+    if: needs.changes.outputs.auth == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Cache NuGet packages (restore still validates project inputs)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/global.json', '**/[Nn]u[Gg]et.[Cc]onfig', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-
       - name: Build Auth API
         run: dotnet build auth/REvolutionClient.Auth.csproj -c Release
       - name: Check local accepted DEV channel and default PROD isolation
@@ -59,6 +99,8 @@ jobs:
           test "$duplicate_code" = "409"
 
   manifest-signing:
+    needs: changes
+    if: needs.changes.outputs.signing == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +130,8 @@ jobs:
             --key-id ci-test-key
 
   client-mod:
+    needs: changes
+    if: needs.changes.outputs.mod == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,22 +142,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '7.6.4'
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Build client-only Forge mod
-        run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon
+        run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
       - uses: actions/upload-artifact@v4
         with:
           name: RE-volution-Client-Mod
           path: mod/build/libs/RE-volution-Client-Mod-*.jar
           if-no-files-found: error
+          retention-days: 3
 
   launcher:
-    needs: [client-mod, manifest-signing]
+    needs: [changes, client-mod]
+    if: needs.changes.outputs.launcher == 'true'
     runs-on: windows-latest
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Cache NuGet packages (restore still validates project inputs)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/global.json', '**/[Nn]u[Gg]et.[Cc]onfig', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-
       - name: Download client mod payload
         uses: actions/download-artifact@v4
         with:
@@ -153,8 +208,6 @@ jobs:
             if ($actualSize -ne [int64]$entry.size) { throw "Gameplay mod size mismatch: expected=$($entry.size) actual=$actualSize" }
           }
           Write-Host "Using gameplay payload from production manifest: $fileName ($actualHash)"
-      - name: Build launcher
-        run: dotnet build launcher/REvolutionClient.Launcher.csproj -c Release
       - name: Publish single-file EXE
         run: dotnet publish launcher/REvolutionClient.Launcher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o launcher/publish
       - name: Verify launcher payload
@@ -168,3 +221,4 @@ jobs:
           name: REvolutionClient-win-x64
           path: launcher/publish/REvolutionClient.exe
           if-no-files-found: error
+          retention-days: 3

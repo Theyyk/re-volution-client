@@ -1,0 +1,56 @@
+{
+  "auth": [
+    ".github/workflows/*",
+    ".github/ci/*",
+    "auth/*",
+    "scripts/test-dev-auth.py",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "global.json",
+    "[Nn]u[Gg]et.[Cc]onfig",
+    "packages.lock.json"
+  ],
+  "signing": [
+    ".github/workflows/*",
+    ".github/ci/*",
+    "tools/ManifestSigner/*",
+    "manifest/*",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "global.json",
+    "[Nn]u[Gg]et.[Cc]onfig",
+    "packages.lock.json"
+  ],
+  "mod": [
+    ".github/workflows/*",
+    ".github/ci/*",
+    "mod/*",
+    "launcher/*",
+    "manifest/*",
+    "tools/LauncherCheck/*",
+    "scripts/*",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "global.json",
+    "[Nn]u[Gg]et.[Cc]onfig",
+    "packages.lock.json"
+  ],
+  "launcher": [
+    ".github/workflows/*",
+    ".github/ci/*",
+    "launcher/*",
+    "manifest/*",
+    "mod/*",
+    "tools/LauncherCheck/*",
+    "scripts/*",
+    "Directory.Build.props",
+    "Directory.Build.targets",
+    "Directory.Packages.props",
+    "global.json",
+    "[Nn]u[Gg]et.[Cc]onfig",
+    "packages.lock.json"
+  ]
+}

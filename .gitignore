@@ -36,3 +36,6 @@ launcher/Payload-backup/
 manifest/manifest.production.json
 manifest/manifest.production.signed.json
 manifest/runtime.local.json
+
+# CI dependency cache
+.nuget/

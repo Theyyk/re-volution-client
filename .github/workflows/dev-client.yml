@@ -7,7 +7,8 @@ on:
     types: [dev-server-ready]
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'
+    # Dispatch is immediate; this is only recovery for a missed dispatch.
+    - cron: '17 * * * *'
 
 # This is the ONLY writer of dev-latest/manifest.dev.json. Keep the group unchanged.
 concurrency:
@@ -39,6 +40,8 @@ jobs:
     needs: changed
     if: needs.changed.outputs.value == 'true'
     runs-on: windows-latest
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +49,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Cache NuGet packages (restore still validates project inputs)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: nuget-${{ runner.os }}-dotnet10-dev-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/global.json', '**/[Nn]u[Gg]et.[Cc]onfig', '**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-dotnet10-dev-
       - name: Check DEV isolation and channel integrity guards
         run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Dev
       - name: Check unchanged default PROD profile
@@ -59,6 +68,7 @@ jobs:
           name: REvolutionClient-dev-win-x64
           path: launcher/publish-dev/REvolutionClient_dev.exe
           if-no-files-found: error
+          retention-days: 3
 
   publish-dev:
     needs: [changed, verify-dev]
@@ -77,9 +87,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '7.6.4'
+          cache-read-only: false
       - uses: docker/setup-buildx-action@v3
       - name: Build current DEV client mod
-        run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon
+        run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
       - name: Publish one manifest for the exact server and gameplay artifact
         env:
           GH_TOKEN: ${{ github.token }}

@@ -50,3 +50,12 @@ processResources {
 }
 
 jar.finalizedBy('reobfJar')
+
+// Same source produces the same payload after a clean or cached compilation.
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    outputs.cacheIf { false } // reobfJar mutates the archive
+}
+
+apply from: 'gradle/reproducible-jar.gradle'

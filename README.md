@@ -124,3 +124,5 @@ README показывает текущее состояние клиентско
 ## Лицензия
 
 Исходный код этого репозитория распространяется по [MIT License](LICENSE), если для конкретного стороннего компонента явно не указаны отдельные условия.
+
+CI scheduling, cache, concurrency and artifact policy: [README-CI.md](README-CI.md).

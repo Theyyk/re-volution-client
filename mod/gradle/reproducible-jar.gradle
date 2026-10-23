@@ -1,0 +1,31 @@
+// ForgeGradle 5's reobfJar rewrites ZIP timestamps after Gradle's archive settings.
+// Normalize only the ZIP envelope; class/resource bytes and manifest are unchanged.
+tasks.matching { it.name == 'reobfJar' }.configureEach {
+    doLast {
+        def archive = tasks.named('jar').get().archiveFile.get().asFile
+        def normalized = new File(archive.parentFile, archive.name + '.normalized')
+        def original = new java.util.zip.ZipFile(archive)
+        try {
+            normalized.withOutputStream { stream ->
+                def zip = new java.util.zip.ZipOutputStream(stream)
+                try {
+                    Collections.list(original.entries()).sort { a, b -> a.name <=> b.name }.each { item ->
+                        def entry = new java.util.zip.ZipEntry(item.name)
+                        // Epoch zero produces a fixed DOS date and explicit UTC extended timestamp.
+                        entry.setTime(0L)
+                        zip.putNextEntry(entry)
+                        if (!item.directory) {
+                            original.getInputStream(item).withCloseable { input ->
+                                byte[] buffer = new byte[8192]
+                                int size
+                                while ((size = input.read(buffer)) != -1) { zip.write(buffer, 0, size) }
+                            }
+                        }
+                        zip.closeEntry()
+                    }
+                } finally { zip.close() }
+            }
+        } finally { original.close() }
+        java.nio.file.Files.move(normalized.toPath(), archive.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
