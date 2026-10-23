@@ -3,6 +3,8 @@ name: Publish DEV client channel
 on:
   push:
     branches: [develop]
+  repository_dispatch:
+    types: [dev-server-ready]
   workflow_dispatch:
   schedule:
     - cron: '*/15 * * * *'

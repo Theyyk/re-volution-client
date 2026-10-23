@@ -60,7 +60,8 @@ no separately updated server pointer that can disagree with it.
    source and credentials are never exported. The completion publisher checks
    the exact private GHCR digest and revision/branch/JAR hash labels with its
    own GITHUB_TOKEN; client CI never needs private GHCR credentials.
-3. Client `dev-client.yml` checks on `develop` pushes, manual dispatch or every
+3. Client `dev-client.yml` checks immediately on the Docker `dev-server-ready`
+   repository dispatch, on `develop` pushes, manual dispatch or every
    15 minutes. It reads public Docker completion receipts, verifies the source CI
    through GitHub API and requires the successful image completion receipt. The
    client token needs no access to the private Docker repository. It selects the greatest marker, builds the
