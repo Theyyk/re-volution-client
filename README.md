@@ -2,7 +2,7 @@
 
 Публичный репозиторий клиентской платформы RE:volution. Он содержит Windows launcher/updater, Auth API, client-only Forge 1.12.2 mod, manifest trust model, инструменты подписи и build/release automation.
 
-**Текущая продуктовая версия: `v1.0.0`.** Launcher и client-only mod версионируются как один продукт RE:volution Client.
+**Последний tagged stable release: `v1.0.0`.** Текущий PROD launcher/distribution содержит post-`v1.0.0` изменения. Следующий Client release должен зафиксировать актуальный launcher и client-only mod как единый продукт RE:volution Client.
 
 [Архитектура](docs/architecture.md) · [Launcher runtime](docs/launcher-runtime.md) · [Auth API](docs/auth-api.md)
 
@@ -65,9 +65,9 @@ Production manifest также обязан управлять ровно одн
 
 ## Production distribution
 
-Signed production manifest размещается в публичном distribution-репозитории [Theyyk/re-volution-resource-pack](https://github.com/Theyyk/re-volution-resource-pack) как `client/manifest.production.signed.json`.
+Signed production manifest принадлежит этому репозиторию и хранится как `manifest/manifest.production.signed.json`.
 
-Gameplay JAR обновляется независимо от launcher EXE. Resource-pack repository автоматически проверяет последний stable release gameplay-мода, скачивает JAR, вычисляет фактические hash/size, обновляет только `gameplay-mod` entry, подписывает новый payload через `tools/ManifestSigner` из этого репозитория и публикует проверенный signed manifest.
+Gameplay JAR обновляется независимо от launcher EXE. После опубликованного stable gameplay release репозиторий `re-volution-mod` отправляет `repository_dispatch` в этот Client-репозиторий. Client workflow скачивает точный stable gameplay JAR, проверяет фактические hash/size, обновляет только `gameplay-mod` entry, подписывает payload через `tools/ManifestSigner`, проверяет подпись и публикует обновлённый `manifest/manifest.production.signed.json` в `main`. Периодическая проверка остаётся fallback для пропущенного dispatch.
 
 Это позволяет клиенту получать актуальный stable gameplay-мод без пересборки launcher для каждого gameplay release.
 
@@ -110,7 +110,7 @@ GitHub Actions проверяет основные продуктовые ком
 ## Связанные репозитории
 
 - [RE:volution Mod](https://github.com/Theyyk/re-volution-mod) — gameplay и dedicated-server logic;
-- [RE:volution Resource Pack](https://github.com/Theyyk/re-volution-resource-pack) — rune-assets, public distribution files и signed production manifest hosting;
+- [RE:volution Resource Pack](https://github.com/Theyyk/re-volution-resource-pack) — rune-assets и Resource Pack releases; прежний production manifest там сохранён только как frozen legacy compatibility для старых launcher EXE;
 - `re-volution-admin` — private local administration tool, не является частью player distribution.
 
 ## Документация
