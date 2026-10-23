@@ -14,7 +14,7 @@ internal static class LauncherProfile
     public static bool IsDevelopment => false;
     public const string AppName = "REvolutionClient";
     public const string DisplayName = "RE:volution Client";
-    public const string ManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.production.signed.json";
+    public const string ManifestUrl = "https://raw.githubusercontent.com/Theyyk/re-volution-client/main/manifest/manifest.production.signed.json";
     public const string EnvironmentPrefix = "REVOLUTION_CLIENT";
 #endif
 
