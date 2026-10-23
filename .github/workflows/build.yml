@@ -180,7 +180,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path launcher/Payload | Out-Null
 
-          $manifestUrl = 'https://raw.githubusercontent.com/Theyyk/re-volution-resource-pack/main/client/manifest.production.signed.json'
+          $manifestUrl = 'https://raw.githubusercontent.com/Theyyk/re-volution-client/main/manifest/manifest.production.signed.json'
           $envelopePath = Join-Path $env:RUNNER_TEMP 'manifest.production.signed.json'
           Invoke-WebRequest -Uri $manifestUrl -OutFile $envelopePath
 
