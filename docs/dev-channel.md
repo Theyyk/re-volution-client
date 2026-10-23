@@ -57,13 +57,15 @@ no separately updated server pointer that can disagree with it.
    in the public client repository. It uses the existing Docker
    `RE_VOLUTION_DOCKER` cross-repository secret. This completion receipt includes
    the exact JAR/digest and `imageBuild.conclusion=success`; private infrastructure
-   source and credentials are never exported.
+   source and credentials are never exported. The completion publisher checks
+   the exact private GHCR digest and revision/branch/JAR hash labels with its
+   own GITHUB_TOKEN; client CI never needs private GHCR credentials.
 3. Client `dev-client.yml` checks on `develop` pushes, manual dispatch or every
    15 minutes. It reads public Docker completion receipts, verifies the source CI
    through GitHub API and requires the successful image completion receipt. The
    client token needs no access to the private Docker repository. It selects the greatest marker, builds the
-   client mod at one pinned client `develop` SHA, checks the image labels against
-   the downloaded gameplay hash, and publishes JARs plus manifest to an immutable
+   client mod at one pinned client `develop` SHA, checks the downloaded gameplay
+   hash against the verified Docker receipt, and publishes JARs plus manifest to an immutable
    `dev-build-*` prerelease. Manual dispatch also rebuilds the DEV EXE.
 4. Only this workflow replaces `dev-latest/manifest.dev.json`, after all assets
    exist. All DEV releases use `--prerelease --latest=false`. No production key,
@@ -169,7 +171,10 @@ do not manually remove it while the container is mismatched.
 For bootstrap or a lost dispatch, manually run Docker `dev-server.yml` with
 `publish_dev=true` and an eligible `mod_ref`, or an exact successful `source_run_id`.
 Then run the client DEV publisher (or wait for its schedule). The existing `RE_VOLUTION_DOCKER` secrets in mod and Docker cover the
-dispatch and public completion receipt respectively; no new secret is required. No failed/PR/fork run is promoted. Retain immutable releases and image
+dispatch and public completion receipt respectively. The Docker token must include
+client repository Contents: read and write; add that selected repository to the
+earlier Docker-only token. A dedicated limited DEV_CHANNEL_PUBLISH_TOKEN in Docker
+is also supported. No broad desktop login token is required. No failed/PR/fork run is promoted. Retain immutable releases and image
 tags needed for rollback; source Actions artifacts must be unexpired for bootstrap.
 
 ## Build and checks

@@ -31,14 +31,8 @@ def publish(client_directory, output):
     head = gh('api', f'repos/{REPO}/commits/develop', '--jq', '.sha')
     if head != client_sha:
         raise RuntimeError('Client develop advanced; retry with the current client checkout')
-    # Verify the exact image embeds the very same CI bytes as the client gameplay artifact.
-    config = json.loads(subprocess.check_output(['docker', 'buildx', 'imagetools', 'inspect',
-                        m['serverImage'], '--format', '{{json .Image}}'], text=True))
-    labels = config['config']['Labels']
-    if (labels.get('org.opencontainers.image.revision') != m['commitSha']
-            or labels.get('re.vol.mod.ref') != m['branch']
-            or labels.get('re.vol.mod.jar.sha256') != m['gameplaySha256']):
-        raise RuntimeError('Server image identity does not match the gameplay artifact')
+    # Private GHCR identity was verified by Docker's trusted completion publisher.
+    # The public receipt allows this workflow and end-user launcher to remain token-free.
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         gh('release', 'download', m['candidateId'], '--repo', REPO,

@@ -166,8 +166,8 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.publish(failure)
 
-    def test_image_or_payload_mismatch_does_not_move_pointer(self):
-        for failure in ('label', 'jar'):
+    def test_corrupt_payload_does_not_move_pointer(self):
+        for failure in ('jar',):
             with self.subTest(failure=failure):
                 self.publish(failure)
 
