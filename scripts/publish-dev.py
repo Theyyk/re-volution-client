@@ -75,7 +75,9 @@ def prune_transient_releases(active_candidate, active_build):
     active_candidate_marker = marker(active_candidate)
     active_build_generation = build_generation(active_build)
     if active_build_generation is None:
-        raise RuntimeError('Invalid active DEV build tag')
+        # Retention is optional cleanup. Unknown state must never make publication fail
+        # or tempt us to delete releases whose ordering cannot be proven.
+        return
 
     for release in releases():
         tag = release['tag_name']
