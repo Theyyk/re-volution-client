@@ -4,9 +4,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
-from dev_channel import REPO, DOCKER, gh, api, latest_candidate, current_channel, can_promote
+from dev_channel import REPO, DOCKER, gh, api, latest_candidate, current_channel, can_promote, marker
 
 
 def one_jar(directory):
@@ -60,13 +61,37 @@ def ensure_dev_latest_release(client_sha, known_releases):
            '--notes', 'Unsigned local Docker DEV channel. Stable production distribution is unchanged.')
 
 
+def build_generation(tag):
+    match = re.fullmatch(
+        r'dev-build-(\d+)-(\d+)-(\d+)-(\d+)-([a-f0-9]{40})-(\d+)-(\d+)', tag)
+    if match is None:
+        return None
+    # Source run/attempt and image run/attempt identify the gameplay generation;
+    # client run/attempt orders rebuilds of that same generation.
+    return tuple(int(match.group(index)) for index in (1, 2, 3, 4, 6, 7))
+
+
 def prune_transient_releases(active_candidate, active_build):
+    active_candidate_marker = marker(active_candidate)
+    active_build_generation = build_generation(active_build)
+    if active_build_generation is None:
+        raise RuntimeError('Invalid active DEV build tag')
+
     for release in releases():
         tag = release['tag_name']
-        if tag.startswith('dev-candidate-') and tag != active_candidate:
-            gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
-            delete_tag_if_present(tag)
+        should_delete = False
+        if tag.startswith('dev-candidate-') and tag != active_candidate['candidateId']:
+            try:
+                release_candidate = json.loads(release['body'])
+                should_delete = marker(release_candidate) < active_candidate_marker
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                # Unknown/malformed state is preserved rather than risking deletion of a newer payload.
+                should_delete = False
         elif tag.startswith('dev-build-') and tag != active_build:
+            release_generation = build_generation(tag)
+            should_delete = release_generation is not None and release_generation < active_build_generation
+
+        if should_delete:
             gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
             delete_tag_if_present(tag)
 
@@ -128,9 +153,9 @@ def publish(client_directory, output):
         ensure_dev_latest_release(client_sha, known_releases)
         # Single mutable document is the atomic visibility boundary for BOTH consumers.
         gh('release', 'upload', 'dev-latest', str(manifest), '--repo', REPO, '--clobber')
-        # Keep only the releases required by the current channel. Historical DEV payloads are
-        # intentionally disposable; stable semantic-version releases are never touched here.
-        prune_transient_releases(m['candidateId'], tag)
+        # Only generations proven older than this publication may be removed. A late older
+        # publisher must never delete a candidate/build that appeared after it started.
+        prune_transient_releases(m, tag)
         print(json.dumps(m, indent=2))
         if 'GITHUB_STEP_SUMMARY' in os.environ:
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
