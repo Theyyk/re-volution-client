@@ -2,7 +2,7 @@
 
 Публичный репозиторий клиентской платформы RE:volution. Он содержит Windows launcher/updater, Auth API, client-only Forge 1.12.2 mod, manifest trust model, инструменты подписи и build/release automation.
 
-**Текущая продуктовая версия: `v1.0.0`.** Launcher и client-only mod версионируются как один продукт RE:volution Client.
+**Последний tagged stable release: `v1.0.0`.** Текущий PROD launcher/distribution содержит post-`v1.0.0` изменения. Следующий Client release должен зафиксировать актуальный launcher и client-only mod как единый продукт RE:volution Client.
 
 [Архитектура](docs/architecture.md) · [Launcher runtime](docs/launcher-runtime.md) · [Auth API](docs/auth-api.md)
 

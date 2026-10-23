@@ -1,0 +1,122 @@
+name: Auto-rollout gameplay manifest
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/auto-gameplay-manifest.yml'
+      - '.github/scripts/update-gameplay-manifest.py'
+      - 'manifest/manifest.production.signed.json'
+      - 'launcher/Infrastructure/LauncherProfile.cs'
+  repository_dispatch:
+    types: [gameplay-release]
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-gameplay-manifest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate latest stable gameplay release against current manifest
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/update-gameplay-manifest.py \
+            --envelope manifest/manifest.production.signed.json \
+            --output "$RUNNER_TEMP/manifest.production.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+  rollout:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check signing key configuration
+        id: signing-key
+        env:
+          MANIFEST_SIGNING_KEY_PEM: ${{ secrets.MANIFEST_SIGNING_KEY_PEM }}
+        shell: bash
+        run: |
+          if [ -z "$MANIFEST_SIGNING_KEY_PEM" ]; then
+            echo "::error::MANIFEST_SIGNING_KEY_PEM is not configured in re-volution-client."
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build manifest signer
+        run: dotnet build tools/ManifestSigner/ManifestSigner.csproj -c Release
+
+      - name: Resolve latest stable gameplay release
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/update-gameplay-manifest.py \
+            --envelope manifest/manifest.production.signed.json \
+            --output "$RUNNER_TEMP/manifest.production.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Sign and verify updated production manifest
+        if: steps.prepare.outputs.changed == 'true'
+        env:
+          MANIFEST_SIGNING_KEY_PEM: ${{ secrets.MANIFEST_SIGNING_KEY_PEM }}
+          KEY_ID: ${{ steps.prepare.outputs.key_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          private_key="$RUNNER_TEMP/manifest.private.pem"
+          public_key="$RUNNER_TEMP/manifest.public.pem"
+          printf '%s\n' "$MANIFEST_SIGNING_KEY_PEM" > "$private_key"
+          chmod 600 "$private_key"
+          python3 - "$KEY_ID" "$public_key" <<'PY'
+          import json, sys
+          from pathlib import Path
+          key_id, output = sys.argv[1], Path(sys.argv[2])
+          data = json.loads(Path('manifest/trusted-manifest-keys.json').read_text(encoding='utf-8'))
+          matches = [item for item in data.get('keys', []) if item.get('keyId') == key_id]
+          if len(matches) != 1 or matches[0].get('algorithm') != 'ecdsa-p256-sha256':
+              raise SystemExit('Trusted production manifest key is missing or invalid')
+          output.write_text(matches[0]['publicKeyPem'] + '\n', encoding='utf-8')
+          PY
+          dotnet run --project tools/ManifestSigner/ManifestSigner.csproj -c Release --no-build -- sign \
+            --manifest "$RUNNER_TEMP/manifest.production.json" --private "$private_key" \
+            --key-id "$KEY_ID" --output manifest/manifest.production.signed.json
+          dotnet run --project tools/ManifestSigner/ManifestSigner.csproj -c Release --no-build -- verify \
+            --envelope manifest/manifest.production.signed.json --public "$public_key" --key-id "$KEY_ID"
+          rm -f "$private_key" "$public_key"
+
+      - name: Publish updated manifest
+        if: steps.prepare.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manifest/manifest.production.signed.json
+          git diff --cached --quiet && { echo 'No signed manifest change to publish.'; exit 0; }
+          git commit -m "chore: rollout gameplay mod v${VERSION}"
+          git push origin HEAD:main
+
+      - name: Report no-op
+        if: steps.prepare.outputs.changed == 'false'
+        run: echo "Production manifest already points at gameplay mod v${{ steps.prepare.outputs.version }}."
