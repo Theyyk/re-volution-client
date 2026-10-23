@@ -41,7 +41,7 @@ def publish(client_directory, output):
         raise RuntimeError('Server image identity does not match the gameplay artifact')
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
-        gh('release', 'download', m['candidateId'], '--repo', DOCKER,
+        gh('release', 'download', m['candidateId'], '--repo', REPO,
            '--pattern', 'RE-volution.jar', '--dir', str(root))
         gameplay = root / m['gameplayFile']
         (root / 'RE-volution.jar').rename(gameplay)

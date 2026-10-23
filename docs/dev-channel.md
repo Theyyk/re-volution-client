@@ -51,11 +51,17 @@ no separately updated server pointer that can disagree with it.
    and embeds those bytes in an image tagged
    `dev-<full gameplay SHA>-<Docker run ID>-<attempt>`. No DEV code is rebuilt and
    no floating `:dev` tag moves. Revision, branch and JAR SHA-256 labels identify
-   the image. A prerelease `dev-candidate-<source run>-<attempt>-<image run>-<attempt>`
-   becomes visible only after the digest, JAR and metadata are all present.
+   the image. After the complete image workflow succeeds, trusted Docker
+   `publish-dev-candidate.yml` validates that success through its own GitHub API
+   token and publishes `dev-candidate-<source run>-<attempt>-<image run>-<attempt>`
+   in the public client repository. It uses the existing Docker
+   `RE_VOLUTION_DOCKER` cross-repository secret. This completion receipt includes
+   the exact JAR/digest and `imageBuild.conclusion=success`; private infrastructure
+   source and credentials are never exported.
 3. Client `dev-client.yml` checks on `develop` pushes, manual dispatch or every
-   15 minutes. It reads complete Docker candidates and verifies successful source
-   and image CI runs via GitHub API. It selects the greatest marker, builds the
+   15 minutes. It reads public Docker completion receipts, verifies the source CI
+   through GitHub API and requires the successful image completion receipt. The
+   client token needs no access to the private Docker repository. It selects the greatest marker, builds the
    client mod at one pinned client `develop` SHA, checks the image labels against
    the downloaded gameplay hash, and publishes JARs plus manifest to an immutable
    `dev-build-*` prerelease. Manual dispatch also rebuilds the DEV EXE.
@@ -102,7 +108,7 @@ The manifest includes these fields in addition to normal auth/Java/Minecraft/fil
   "serverImageTag": "ghcr.io/theyyk/re-volution-server:dev-<SHA>-<image run>-<attempt>",
   "candidateId": "dev-candidate-<source run>-<attempt>-<image run>-<attempt>",
   "sourceRun": {"id": 11, "createdAt": "2026-10-23T01:00:00Z", "attempt": 1, "url": "<CI URL>", "artifactId": 123},
-  "imageBuild": {"id": 22, "attempt": 1},
+  "imageBuild": {"id": 22, "attempt": 1, "conclusion": "success", "url": "<Docker CI URL>"},
   "manifestUrl": "https://github.com/Theyyk/re-volution-client/releases/download/dev-build-<candidate>-<client SHA>-<publisher run>-<attempt>/manifest.dev.json",
   "source": {"gameplaySha": "<same gameplay SHA>", "clientSha": "<client source SHA>", "channel": "dev", "branch": "fix/example"},
   "files": [
@@ -162,9 +168,8 @@ do not manually remove it while the container is mismatched.
 
 For bootstrap or a lost dispatch, manually run Docker `dev-server.yml` with
 `publish_dev=true` and an eligible `mod_ref`, or an exact successful `source_run_id`.
-Then run the client DEV publisher (or wait for its schedule). Existing cross-repo
-secret `RE_VOLUTION_DOCKER` is used only by the mod dispatcher; no new secret is
-required. No failed/PR/fork run is promoted. Retain immutable releases and image
+Then run the client DEV publisher (or wait for its schedule). The existing `RE_VOLUTION_DOCKER` secrets in mod and Docker cover the
+dispatch and public completion receipt respectively; no new secret is required. No failed/PR/fork run is promoted. Retain immutable releases and image
 tags needed for rollback; source Actions artifacts must be unexpired for bootstrap.
 
 ## Build and checks

@@ -21,11 +21,15 @@ def candidate(run_id, branch='feature/new', created='2026-10-23T01:00:00Z', imag
                 serverImage='ghcr.io/theyyk/re-volution-server@sha256:'+'b'*64,
                 candidateId=f'dev-candidate-{run_id}',
                 sourceRun=dict(id=run_id, createdAt=created, attempt=1),
-                imageBuild=dict(id=image_id or run_id+100, attempt=1))
+                imageBuild=dict(id=image_id or run_id+100, attempt=1, conclusion='success'))
 
 
 class ChannelTests(unittest.TestCase):
     def select(self, candidates, failed=(), incomplete=(), tampered=False):
+        candidates = copy.deepcopy(candidates)
+        for m in candidates:
+            if m['imageBuild']['id'] in failed + incomplete:
+                m['imageBuild']['conclusion'] = 'failure' if m['imageBuild']['id'] in failed else None
         releases = [dict(draft=False, tag_name=m['candidateId'], body=json.dumps(m),
                          assets=[dict(name='candidate.json'), dict(name='RE-volution.jar')]) for m in candidates]
         def api(path):

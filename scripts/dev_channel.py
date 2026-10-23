@@ -39,7 +39,7 @@ def validate(m):
 
 
 def latest_candidate():
-    pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{DOCKER}/releases?per_page=100'))
+    pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{REPO}/releases?per_page=100'))
     candidates = []
     for release in (r for page in pages for r in page):
         if release['draft'] or not release['tag_name'].startswith('dev-candidate-'):
@@ -53,17 +53,15 @@ def latest_candidate():
         candidates.append(m)
     for m in sorted(candidates, key=marker, reverse=True):
         source = api(f"repos/{MOD}/actions/runs/{m['sourceRun']['id']}")
-        build = api(f"repos/{DOCKER}/actions/runs/{m['imageBuild']['id']}")
-        if (source['status'] == build['status'] == 'completed'
-                and source['conclusion'] == build['conclusion'] == 'success'
+        # Candidate release is emitted by Docker's trusted workflow_run only AFTER
+        # image workflow success. Client token cannot read the private Docker repo.
+        if (source['status'] == 'completed' and source['conclusion'] == 'success'
+                and m['imageBuild'].get('conclusion') == 'success'
                 and source['event'] == 'push' and source['path'] == '.github/workflows/release.yml'
                 and source['head_repository']['full_name'].lower() == MOD.lower()
-                and build['head_repository']['full_name'].lower() == DOCKER.lower()
-                and build['path'] == '.github/workflows/dev-server.yml'
                 and source['head_branch'] == m['branch'] and source['head_sha'] == m['commitSha']
                 and source['created_at'] == m['sourceRun']['createdAt']
-                and source['run_attempt'] == m['sourceRun']['attempt']
-                and build['run_attempt'] == m['imageBuild']['attempt']):
+                and source['run_attempt'] == m['sourceRun']['attempt']):
             return m
     raise RuntimeError('No complete successful DEV server candidate is available')
 
