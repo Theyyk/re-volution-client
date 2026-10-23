@@ -4,11 +4,36 @@ internal sealed class ClientManifest
 {
     public string ProductVersion { get; init; } = string.Empty;
     public bool DevelopmentOnly { get; init; }
+    public int SchemaVersion { get; init; }
+    public string Channel { get; init; } = string.Empty;
+    public string Branch { get; init; } = string.Empty;
+    public string CommitSha { get; init; } = string.Empty;
+    public string GameplayVersion { get; init; } = string.Empty;
+    public string GameplaySha256 { get; init; } = string.Empty;
+    public long GameplaySize { get; init; }
+    public string ServerImage { get; init; } = string.Empty;
+    public string ManifestUrl { get; init; } = string.Empty;
+    public DevSourceManifest Source { get; init; } = new();
+    public DevRunManifest SourceRun { get; init; } = new();
+    public DevRunManifest ImageBuild { get; init; } = new();
     public AuthManifest Auth { get; init; } = new();
     public JavaRuntimeManifest Java { get; init; } = new();
     public MinecraftManifest Minecraft { get; init; } = new();
     public ServerManifest Server { get; init; } = new();
     public List<ManagedFileManifest> Files { get; init; } = new();
+}
+
+internal sealed class DevSourceManifest
+{
+    public string GameplaySha { get; init; } = string.Empty;
+    public string ClientSha { get; init; } = string.Empty;
+}
+
+internal sealed class DevRunManifest
+{
+    public long Id { get; init; }
+    public int Attempt { get; init; }
+    public string CreatedAt { get; init; } = string.Empty;
 }
 
 internal sealed class AuthManifest

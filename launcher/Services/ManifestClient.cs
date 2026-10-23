@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using REvolutionClient.Launcher.Model;
+using REvolutionClient.Launcher.Infrastructure;
 
 namespace REvolutionClient.Launcher.Services;
 
@@ -20,10 +21,14 @@ internal sealed class ManifestClient
 
     public async Task<ClientManifest> GetAsync(Uri uri, CancellationToken cancellationToken)
     {
-        if (uri.Scheme != Uri.UriSchemeHttps)
+        var localDev = LauncherProfile.IsDevelopment &&
+            uri.GetLeftPart(UriPartial.Path) == "http://127.0.0.1:25567/api/v1/dev/channel";
+        if (uri.Scheme != Uri.UriSchemeHttps && !localDev)
             throw new InvalidOperationException("Manifest endpoint must use HTTPS.");
 
-        using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is > MaximumManifestBytes)
             throw new InvalidDataException("Manifest is too large.");

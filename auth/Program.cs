@@ -38,6 +38,27 @@ app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+// Enabled only by local Docker DEV configuration. No channel endpoint in normal PROD configuration.
+var devChannelDirectory = Environment.GetEnvironmentVariable("REVOLUTION_DEV_CHANNEL_DIRECTORY");
+if (!string.IsNullOrWhiteSpace(devChannelDirectory))
+{
+    app.MapGet("/api/v1/dev/channel", async (HttpContext context, CancellationToken token) =>
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        var active = Path.Combine(devChannelDirectory, "active.json");
+        var updating = Path.Combine(devChannelDirectory, "updating");
+        if (File.Exists(updating) || !File.Exists(active))
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        try
+        {
+            var json = await File.ReadAllTextAsync(active, token);
+            if (File.Exists(updating)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            return Results.Text(json, "application/json");
+        }
+        catch (IOException) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
+    });
+}
+
 app.MapPost("/api/v1/auth/register", async (CredentialRequest request, AuthService auth, CancellationToken cancellationToken) =>
 {
     try

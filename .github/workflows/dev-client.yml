@@ -7,6 +7,7 @@ on:
   schedule:
     - cron: '*/15 * * * *'
 
+# This is the ONLY writer of dev-latest/manifest.dev.json. Keep the group unchanged.
 concurrency:
   group: dev-client-channel
   cancel-in-progress: false
@@ -20,24 +21,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       value: ${{ steps.check.outputs.value }}
+      client_sha: ${{ steps.check.outputs.client_sha }}
     steps:
-      - name: Check whether the DEV sources changed
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Select newest complete successful DEV candidate
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-        shell: bash
         run: |
-          set -euo pipefail
-          gameplay=$(gh api 'repos/Theyyk/re-volution-mod/actions/workflows/release.yml/runs?branch=develop&event=push&status=success&per_page=1' --jq '.workflow_runs[0].head_sha')
-          client=$(gh api repos/Theyyk/re-volution-client/commits/develop --jq '.sha')
-          changed=true
-          if [ "$EVENT_NAME" = schedule ] && gh release download dev-latest --repo "$GITHUB_REPOSITORY" --pattern manifest.dev.json --dir "$RUNNER_TEMP/channel"; then
-            old_gameplay=$(jq -r '.source.gameplaySha' "$RUNNER_TEMP/channel/manifest.dev.json")
-            old_client=$(jq -r '.source.clientSha' "$RUNNER_TEMP/channel/manifest.dev.json")
-            if [ "$gameplay" = "$old_gameplay" ] && [ "$client" = "$old_client" ]; then changed=false; fi
-          fi
-          echo "value=$changed" >> "$GITHUB_OUTPUT"
+          python3 scripts/check-dev-channel.py
 
   verify-dev:
     needs: changed
@@ -46,14 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ needs.changed.outputs.client_sha }}
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Check DEV isolation and manifest integrity guards
+      - name: Check DEV isolation and channel integrity guards
         run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Dev
       - name: Check unchanged default PROD profile
         run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Prod
+      - name: Check cross-branch selection and late older build races
+        run: python scripts/test-dev-channel.py
       - name: Publish isolated DEV launcher
         run: dotnet publish launcher/REvolutionClient.Launcher.csproj -c Release -p:LauncherChannel=Dev -o launcher/publish-dev
       - uses: actions/upload-artifact@v4
@@ -63,7 +59,7 @@ jobs:
           if-no-files-found: error
 
   publish-dev:
-    needs: verify-dev
+    needs: [changed, verify-dev]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -71,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ needs.changed.outputs.client_sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -79,9 +75,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '7.6.4'
+      - uses: docker/setup-buildx-action@v3
       - name: Build current DEV client mod
         run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon
-      - name: Publish latest successful develop payload and DEV manifest
+      - name: Publish one manifest for the exact server and gameplay artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish-dev.py --client-directory mod/build/libs --output "$RUNNER_TEMP/dev-channel"

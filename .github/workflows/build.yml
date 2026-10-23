@@ -16,6 +16,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build Auth API
         run: dotnet build auth/REvolutionClient.Auth.csproj -c Release
+      - name: Check local accepted DEV channel and default PROD isolation
+        run: python3 scripts/test-dev-auth.py --dll auth/bin/Prod/Release/net10.0/REvolutionClient.Auth.dll
       - name: Smoke test Auth API
         shell: bash
         run: |

@@ -35,6 +35,9 @@ internal sealed class ClientBootstrapService
         LauncherProfile.ValidateManifest(manifest);
         _paths.EnsureCreated();
 
+        if (LauncherProfile.IsDevelopment)
+            progress.Report($"DEV {manifest.Branch} / {manifest.GameplayVersion} / {manifest.CommitSha[..12]}");
+
         progress.Report("Проверяю Java 8…");
         var java = await _javaRuntime.EnsureJava8Async(manifest.Java, progress, cancellationToken);
 
