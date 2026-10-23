@@ -47,7 +47,7 @@ if (args.Length == 1 && args[0] == "--prepare")
 if (!LauncherProfile.IsDevelopment)
 {
     Check(LauncherProfile.AppName == "REvolutionClient", "PROD keeps existing settings namespace");
-    Check(LauncherProfile.ManifestUrl.EndsWith("/main/client/manifest.production.signed.json"), "PROD keeps signed stable URL");
+    Check(LauncherProfile.ManifestUrl == "https://raw.githubusercontent.com/Theyyk/re-volution-client/main/manifest/manifest.production.signed.json", "PROD keeps signed stable URL");
     return;
 }
 
