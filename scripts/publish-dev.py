@@ -46,6 +46,20 @@ def ensure_dev_latest_ref(client_sha):
            '-f', f'sha={client_sha}', '-F', 'force=true')
 
 
+def ensure_dev_latest_release(client_sha, known_releases):
+    ensure_dev_latest_ref(client_sha)
+    release = next((r for r in known_releases if r['tag_name'] == 'dev-latest'), None)
+    # Deleting only the Git tag leaves a release object whose URL becomes /untagged-*.
+    # Recreate that object once so release-by-tag works again and future uploads are normal.
+    if release is not None and '/untagged-' in release.get('html_url', ''):
+        gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
+        release = None
+    if release is None:
+        gh('release', 'create', 'dev-latest', '--repo', REPO, '--target', client_sha,
+           '--prerelease', '--latest=false', '--title', 'DEV channel (testing only)',
+           '--notes', 'Unsigned local Docker DEV channel. Stable production distribution is unchanged.')
+
+
 def prune_transient_releases(active_candidate, active_build):
     for release in releases():
         tag = release['tag_name']
@@ -111,12 +125,9 @@ def publish(client_directory, output):
             raise RuntimeError('Refusing a channel rollback')
         if gh('api', f'repos/{REPO}/commits/develop', '--jq', '.sha') != client_sha:
             raise RuntimeError('Client source changed; retry')
-        if old is None and not any(r['tag_name'] == 'dev-latest' for r in known_releases):
-            gh('release', 'create', 'dev-latest', '--repo', REPO, '--target', client_sha,
-               '--prerelease', '--latest=false', '--title', 'DEV channel', '--notes', 'Unsigned testing channel')
+        ensure_dev_latest_release(client_sha, known_releases)
         # Single mutable document is the atomic visibility boundary for BOTH consumers.
         gh('release', 'upload', 'dev-latest', str(manifest), '--repo', REPO, '--clobber')
-        ensure_dev_latest_ref(client_sha)
         # Keep only the releases required by the current channel. Historical DEV payloads are
         # intentionally disposable; stable semantic-version releases are never touched here.
         prune_transient_releases(m['candidateId'], tag)
