@@ -35,7 +35,6 @@ jobs:
             --envelope manifest/manifest.production.signed.json \
             --output "$RUNNER_TEMP/manifest.production.json" \
             --github-output "$GITHUB_OUTPUT"
-          echo "Latest stable gameplay version: ${{ steps.prepare.outputs.version }}"
 
   rollout:
     if: github.event_name != 'pull_request'
