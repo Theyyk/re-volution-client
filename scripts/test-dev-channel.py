@@ -171,6 +171,36 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.publish(failure)
 
+    def test_retention_never_deletes_newer_generations(self):
+        active = candidate(20, branch='develop', created='2026-10-23T02:00:00Z', image_id=120)
+        active['candidateId'] = 'dev-candidate-20-1-120-1'
+        older = candidate(10, created='2026-10-23T01:00:00Z', image_id=110)
+        older['candidateId'] = 'dev-candidate-10-1-110-1'
+        newer = candidate(30, created='2026-10-23T03:00:00Z', image_id=130)
+        newer['candidateId'] = 'dev-candidate-30-1-130-1'
+        sha = 'f' * 40
+        active_build = f'dev-build-20-1-120-1-{sha}-1000-1'
+        older_build = f'dev-build-10-1-110-1-{sha}-900-1'
+        newer_build = f'dev-build-30-1-130-1-{sha}-1100-1'
+        transient = [
+            dict(id=1, tag_name=older['candidateId'], body=json.dumps(older)),
+            dict(id=2, tag_name=active['candidateId'], body=json.dumps(active)),
+            dict(id=3, tag_name=newer['candidateId'], body=json.dumps(newer)),
+            dict(id=4, tag_name=older_build, body=''),
+            dict(id=5, tag_name=active_build, body=''),
+            dict(id=6, tag_name=newer_build, body=''),
+        ]
+        commands = []
+        with patch.object(publisher, 'releases', return_value=transient), \
+             patch.object(publisher, 'gh', side_effect=lambda *args: commands.append(args) or ''):
+            publisher.prune_transient_releases(active, active_build)
+        deleted_ids = {
+            int(command[-1].rsplit('/', 1)[1])
+            for command in commands
+            if command[:3] == ('api', '--method', 'DELETE') and '/releases/' in command[-1]
+        }
+        self.assertEqual(deleted_ids, {1, 4})
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
