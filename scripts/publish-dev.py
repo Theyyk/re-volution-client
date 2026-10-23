@@ -22,6 +22,55 @@ def managed(path, tag, role):
                 downloadUrl=f'https://github.com/{REPO}/releases/download/{tag}/{path.name}')
 
 
+def releases():
+    pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{REPO}/releases?per_page=100'))
+    return [release for page in pages for release in page]
+
+
+def delete_tag_if_present(tag):
+    try:
+        gh('api', '--method', 'DELETE', f'repos/{REPO}/git/refs/tags/{tag}')
+    except subprocess.CalledProcessError:
+        # Deleted tags leave release objects behind; missing refs are an expected cleanup case.
+        pass
+
+
+def ensure_dev_latest_ref(client_sha):
+    try:
+        gh('api', f'repos/{REPO}/git/ref/tags/dev-latest')
+    except subprocess.CalledProcessError:
+        gh('api', '--method', 'POST', f'repos/{REPO}/git/refs',
+           '-f', 'ref=refs/tags/dev-latest', '-f', f'sha={client_sha}')
+    else:
+        gh('api', '--method', 'PATCH', f'repos/{REPO}/git/refs/tags/dev-latest',
+           '-f', f'sha={client_sha}', '-F', 'force=true')
+
+
+def ensure_dev_latest_release(client_sha, known_releases):
+    ensure_dev_latest_ref(client_sha)
+    release = next((r for r in known_releases if r['tag_name'] == 'dev-latest'), None)
+    # Deleting only the Git tag leaves a release object whose URL becomes /untagged-*.
+    # Recreate that object once so release-by-tag works again and future uploads are normal.
+    if release is not None and '/untagged-' in release.get('html_url', ''):
+        gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
+        release = None
+    if release is None:
+        gh('release', 'create', 'dev-latest', '--repo', REPO, '--target', client_sha,
+           '--prerelease', '--latest=false', '--title', 'DEV channel (testing only)',
+           '--notes', 'Unsigned local Docker DEV channel. Stable production distribution is unchanged.')
+
+
+def prune_transient_releases(active_candidate, active_build):
+    for release in releases():
+        tag = release['tag_name']
+        if tag.startswith('dev-candidate-') and tag != active_candidate:
+            gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
+            delete_tag_if_present(tag)
+        elif tag.startswith('dev-build-') and tag != active_build:
+            gh('api', '--method', 'DELETE', f"repos/{REPO}/releases/{release['id']}")
+            delete_tag_if_present(tag)
+
+
 def publish(client_directory, output):
     m = latest_candidate()
     old = current_channel()
@@ -56,8 +105,8 @@ def publish(client_directory, output):
         manifest = Path(output) / 'manifest.dev.json'
         manifest.parent.mkdir(parents=True, exist_ok=True)
         manifest.write_text(json.dumps(m, indent=2) + '\n', encoding='utf-8')
-        releases = json.loads(gh('api', '--paginate', '--slurp', f'repos/{REPO}/releases?per_page=100'))
-        existing = next((r for page in releases for r in page if r['tag_name'] == tag), None)
+        known_releases = releases()
+        existing = next((r for r in known_releases if r['tag_name'] == tag), None)
         if existing is None:
             gh('release', 'create', tag, str(gameplay), str(client), str(manifest), '--repo', REPO,
                '--target', client_sha, '--prerelease', '--latest=false', '--draft', '--title', tag,
@@ -76,11 +125,12 @@ def publish(client_directory, output):
             raise RuntimeError('Refusing a channel rollback')
         if gh('api', f'repos/{REPO}/commits/develop', '--jq', '.sha') != client_sha:
             raise RuntimeError('Client source changed; retry')
-        if old is None and not any(r['tag_name'] == 'dev-latest' for page in releases for r in page):
-            gh('release', 'create', 'dev-latest', '--repo', REPO, '--target', client_sha,
-               '--prerelease', '--latest=false', '--title', 'DEV channel', '--notes', 'Unsigned testing channel')
+        ensure_dev_latest_release(client_sha, known_releases)
         # Single mutable document is the atomic visibility boundary for BOTH consumers.
         gh('release', 'upload', 'dev-latest', str(manifest), '--repo', REPO, '--clobber')
+        # Keep only the releases required by the current channel. Historical DEV payloads are
+        # intentionally disposable; stable semantic-version releases are never touched here.
+        prune_transient_releases(m['candidateId'], tag)
         print(json.dumps(m, indent=2))
         if 'GITHUB_STEP_SUMMARY' in os.environ:
             with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
