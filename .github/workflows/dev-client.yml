@@ -6,6 +6,11 @@ on:
   repository_dispatch:
     types: [dev-server-ready]
   workflow_dispatch:
+    inputs:
+      verify_only:
+        description: Verify/build reusable DEV payloads without publishing any release or channel
+        type: boolean
+        default: false
   schedule:
     # Dispatch is immediate; this is only recovery for a missed dispatch.
     - cron: '17 * * * *'
@@ -47,6 +52,7 @@ jobs:
         with:
           ref: ${{ needs.changed.outputs.client_sha }}
       - uses: actions/setup-dotnet@v4
+        id: dotnet
         with:
           dotnet-version: '10.0.x'
       - name: Cache NuGet packages (restore still validates project inputs)
@@ -55,6 +61,12 @@ jobs:
           path: ${{ github.workspace }}/.nuget/packages
           key: nuget-${{ runner.os }}-dotnet10-dev-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/global.json', '**/[Nn]u[Gg]et.[Cc]onfig', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-dotnet10-dev-
+      - name: Restore exact trusted DEV launcher
+        id: dev_exe
+        uses: actions/cache@v4
+        with:
+          path: launcher/publish-dev/REvolutionClient_dev.exe
+          key: dev-exe-v1-${{ runner.os }}-${{ steps.dotnet.outputs.dotnet-version }}-${{ github.workflow_sha }}-${{ needs.changed.outputs.client_sha }}
       - name: Check DEV isolation and channel integrity guards
         run: dotnet run --project tools/LauncherCheck -c Release -p:LauncherChannel=Dev
       - name: Check unchanged default PROD profile
@@ -62,7 +74,14 @@ jobs:
       - name: Check cross-branch selection and late older build races
         run: python scripts/test-dev-channel.py
       - name: Publish isolated DEV launcher
+        if: steps.dev_exe.outputs.cache-hit != 'true'
         run: dotnet publish launcher/REvolutionClient.Launcher.csproj -c Release -p:LauncherChannel=Dev -o launcher/publish-dev
+      - name: Verify exact launcher payload
+        shell: pwsh
+        run: |
+          $file = Get-Item launcher/publish-dev/REvolutionClient_dev.exe
+          if ($file.Length -le 0) { throw 'DEV launcher is empty' }
+          Get-FileHash -Algorithm SHA256 $file.FullName
       - uses: actions/upload-artifact@v4
         with:
           name: REvolutionClient-dev-win-x64
@@ -81,25 +100,40 @@ jobs:
         with:
           ref: ${{ needs.changed.outputs.client_sha }}
       - uses: actions/setup-java@v5
+        id: java
         with:
           distribution: temurin
           java-version: '8'
+      - name: Restore exact trusted client mod
+        id: client_mod
+        uses: actions/cache@v4
+        with:
+          path: mod/build/libs/RE-volution-Client-Mod-*.jar
+          key: dev-client-mod-v1-${{ runner.os }}-${{ steps.java.outputs.version }}-gradle7.6.4-${{ github.workflow_sha }}-${{ needs.changed.outputs.client_sha }}
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.client_mod.outputs.cache-hit != 'true'
         with:
           gradle-version: '7.6.4'
           cache-read-only: false
-      - uses: docker/setup-buildx-action@v3
       - name: Build current DEV client mod
+        if: steps.client_mod.outputs.cache-hit != 'true'
         run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
+      - name: Verify client payload shape and record exact hash
+        run: |
+          test "$(find mod/build/libs -maxdepth 1 -name '*.jar' | wc -l)" = 1
+          sha256sum mod/build/libs/*.jar
       - name: Publish one manifest for the exact server and gameplay artifact
+        if: ${{ !inputs.verify_only }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish-dev.py --client-directory mod/build/libs --output "$RUNNER_TEMP/dev-channel"
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.verify_only }}
         with:
           name: REvolutionClient-dev-win-x64
           path: dev-launcher
       - name: Publish DEV launcher download
+        if: ${{ !inputs.verify_only }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload dev-latest dev-launcher/REvolutionClient_dev.exe --repo "$GITHUB_REPOSITORY" --clobber

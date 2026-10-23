@@ -61,6 +61,14 @@ References: [Gradle setup/cache](https://github.com/gradle/actions/blob/v4/docs/
 - The server receipt supplies the already built exact gameplay JAR. No gameplay
   rebuild is introduced. Client Forge compile outputs may come from Gradle's task
   cache; the final reobfuscated client JAR is rebuilt deterministically.
+  Trusted DEV publication also caches the complete verified DEV EXE and client JAR
+  by exact client SHA, active workflow SHA and resolved toolchain version. No prefix
+  restore is allowed. These are separate from Gradle's task cache: a new gameplay
+  candidate can reuse the exact client payloads while all profile/race tests and final
+  publication rechecks still run. PR/ordinary branch jobs never populate these keys.
+  A missing/evicted entry rebuilds normally. No release asset is used as a mutable cache.
+  Manual verify_only=true exercises both cache paths without publishing a release,
+  tag, manifest or launcher download. The global channel lock remains held.
 - Temporary client mod, launcher and DEV EXE handoff artifacts: 3 days. Immutable
   dev-build/dev-candidate releases, dev-latest and production artifacts are not pruned.
 
