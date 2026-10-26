@@ -30,6 +30,7 @@ jobs:
     outputs:
       value: ${{ steps.check.outputs.value }}
       client_sha: ${{ steps.check.outputs.client_sha }}
+      candidate_id: ${{ steps.check.outputs.candidate_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +46,9 @@ jobs:
     needs: changed
     if: needs.changed.outputs.value == 'true'
     runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
@@ -82,12 +86,15 @@ jobs:
           $file = Get-Item launcher/publish-dev/REvolutionClient_dev.exe
           if ($file.Length -le 0) { throw 'DEV launcher is empty' }
           Get-FileHash -Algorithm SHA256 $file.FullName
-      - uses: actions/upload-artifact@v4
-        with:
-          name: REvolutionClient-dev-win-x64
-          path: launcher/publish-dev/REvolutionClient_dev.exe
-          if-no-files-found: error
-          retention-days: 3
+      - name: Stage verified launcher on exact candidate release
+        if: ${{ !inputs.verify_only }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_ID: ${{ needs.changed.outputs.candidate_id }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CANDIDATE_ID)) { throw 'Missing exact candidate id.' }
+          gh release upload $env:CANDIDATE_ID launcher/publish-dev/REvolutionClient_dev.exe --repo $env:GITHUB_REPOSITORY --clobber
 
   publish-dev:
     needs: [changed, verify-dev]
@@ -122,16 +129,22 @@ jobs:
         run: |
           test "$(find mod/build/libs -maxdepth 1 -name '*.jar' | wc -l)" = 1
           sha256sum mod/build/libs/*.jar
+      - name: Download exact verified DEV launcher from candidate release
+        if: ${{ !inputs.verify_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_ID: ${{ needs.changed.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          test -n "$CANDIDATE_ID"
+          mkdir -p dev-launcher
+          gh release download "$CANDIDATE_ID" --repo "$GITHUB_REPOSITORY" --pattern REvolutionClient_dev.exe --dir dev-launcher
+          test -s dev-launcher/REvolutionClient_dev.exe
       - name: Publish one manifest for the exact server and gameplay artifact
         if: ${{ !inputs.verify_only }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish-dev.py --client-directory mod/build/libs --output "$RUNNER_TEMP/dev-channel"
-      - uses: actions/download-artifact@v4
-        if: ${{ !inputs.verify_only }}
-        with:
-          name: REvolutionClient-dev-win-x64
-          path: dev-launcher
       - name: Publish DEV launcher download
         if: ${{ !inputs.verify_only }}
         env:
