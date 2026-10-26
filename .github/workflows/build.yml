@@ -145,12 +145,10 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Build client-only Forge mod
         run: gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
-      - uses: actions/upload-artifact@v4
-        with:
-          name: RE-volution-Client-Mod
-          path: mod/build/libs/RE-volution-Client-Mod-*.jar
-          if-no-files-found: error
-          retention-days: 3
+      - name: Verify client mod payload without Actions artifact storage
+        run: |
+          test "$(find mod/build/libs -maxdepth 1 -name 'RE-volution-Client-Mod-*.jar' | wc -l)" = 1
+          sha256sum mod/build/libs/RE-volution-Client-Mod-*.jar
 
   launcher:
     needs: [changes, client-mod]
@@ -163,17 +161,28 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.6.4'
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Cache NuGet packages (restore still validates project inputs)
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.nuget/packages
           key: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/global.json', '**/[Nn]u[Gg]et.[Cc]onfig', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-dotnet10-client-${{ github.job }}-
-      - name: Download client mod payload
-        uses: actions/download-artifact@v4
-        with:
-          name: RE-volution-Client-Mod
-          path: launcher/Payload
+      - name: Build exact client mod payload locally for launcher validation
+        shell: pwsh
+        run: |
+          gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
+          New-Item -ItemType Directory -Force -Path launcher/Payload | Out-Null
+          $client = @(Get-ChildItem mod/build/libs -Filter 'RE-volution-Client-Mod-*.jar')
+          if ($client.Count -ne 1) { throw "Expected exactly one client mod JAR, got $($client.Count)." }
+          Copy-Item $client[0].FullName launcher/Payload/$($client[0].Name)
       - name: Download gameplay mod from production signed manifest
         shell: pwsh
         run: |
@@ -216,9 +225,4 @@ jobs:
           if (-not (Test-Path 'launcher/publish/REvolutionClient.exe')) { throw 'REvolutionClient.exe is missing.' }
           $payload = Get-ChildItem launcher/Payload -Filter '*.jar'
           if ($payload.Count -lt 2) { throw 'Expected both gameplay and client mod payloads.' }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: REvolutionClient-win-x64
-          path: launcher/publish/REvolutionClient.exe
-          if-no-files-found: error
-          retention-days: 3
+          Get-FileHash -Algorithm SHA256 launcher/publish/REvolutionClient.exe
