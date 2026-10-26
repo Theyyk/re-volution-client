@@ -178,7 +178,7 @@ jobs:
       - name: Build exact client mod payload locally for launcher validation
         shell: pwsh
         run: |
-          gradle -p mod -Dnet.minecraftforge.gradle.check.certs=false clean build --no-daemon --build-cache
+          gradle -p mod clean build --no-daemon --build-cache
           New-Item -ItemType Directory -Force -Path launcher/Payload | Out-Null
           $client = @(Get-ChildItem mod/build/libs -Filter 'RE-volution-Client-Mod-*.jar')
           if ($client.Count -ne 1) { throw "Expected exactly one client mod JAR, got $($client.Count)." }
