@@ -30,5 +30,5 @@ if os.environ.get('GITHUB_EVENT_NAME') == 'repository_dispatch' and not changed:
             break
 
 with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-    output.write(f"value={str(changed).lower()}\nclient_sha={sha}\n")
+    output.write(f"value={str(changed).lower()}\nclient_sha={sha}\ncandidate_id={candidate['candidateId']}\n")
 print(f"DEV candidate: {candidate['branch']} @ {candidate['commitSha']}; changed={changed}")
