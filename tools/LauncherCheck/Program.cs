@@ -20,6 +20,49 @@ async Task Reject(Func<Task> action, string message)
     throw new Exception("Expected rejection: " + message);
 }
 
+if (args.Length >= 1 && args[0] == "--remember-login")
+{
+    System.Windows.Forms.Application.EnableVisualStyles();
+    var root = Path.Combine(Path.GetTempPath(), "revolution-remember-check-" + Guid.NewGuid().ToString("N"));
+    var file = Path.Combine(root, "remembered-login.bin");
+    try
+    {
+        var store = new RememberedLoginStore(root);
+        Check(store.Load() is null, "No credentials on first launch");
+        const string password = "Synthetic-Password-ONLY-!123";
+        store.Save("Тестовый пользователь", password);
+        var raw = File.ReadAllBytes(file);
+        Check(!Encoding.UTF8.GetString(raw).Contains(password), "Password is encrypted on disk");
+        Check(!Encoding.UTF8.GetString(raw).Contains("Тестовый пользователь"), "Username is encrypted on disk");
+        Check(new RememberedLoginStore(root).Load() == new RememberedLogin("Тестовый пользователь", password), "Login survives store restart, including Unicode");
+        store.Save("new-user", "replacement-password");
+        Check(store.Load() == new RememberedLogin("new-user", "replacement-password"), "Successful login can replace remembered data");
+        Check(Directory.GetFiles(root).Length == 1, "No temporary credentials remain");
+        store.Delete();
+        store.Delete();
+        Check(store.Load() is null && !File.Exists(file), "Unchecking removes data, repeated deletion is safe");
+        Directory.CreateDirectory(root);
+        File.WriteAllBytes(file, new byte[] { 1, 2, 3 });
+        Check(store.Load() is null, "Damaged ciphertext permits manual login");
+        store.Save("demo", password);
+        using (var form = new REvolutionClient.Launcher.UI.MainForm(store))
+        {
+            var box = form.Controls.OfType<System.Windows.Forms.CheckBox>().Single();
+            var fields = form.Controls.OfType<System.Windows.Forms.TextBox>().ToArray();
+            Check(box.Checked && fields.Any(f => f.Text == "demo") && fields.Any(f => f.UseSystemPasswordChar && f.Text == password), "New form restores remembered fields and check mark");
+            box.Checked = false;
+            Check(!File.Exists(file), "UI uncheck immediately deletes saved credentials");
+        }
+        using (var form = new REvolutionClient.Launcher.UI.MainForm(store))
+        {
+            Check(!form.Controls.OfType<System.Windows.Forms.CheckBox>().Single().Checked &&
+                form.Controls.OfType<System.Windows.Forms.TextBox>().Where(f => f.UseSystemPasswordChar).All(f => f.Text.Length == 0), "Restart after uncheck has empty password");
+        }
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    return;
+}
+
 using var http = new HttpClient();
 if (args.Length == 1 && args[0] == "--verify-production")
 {
