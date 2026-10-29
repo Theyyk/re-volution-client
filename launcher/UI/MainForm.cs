@@ -13,6 +13,9 @@ internal sealed class MainForm : Form
 
     private readonly TextBox _username = new() { Left = 142, Top = 22, Width = 250 };
     private readonly TextBox _password = new() { Left = 142, Top = 56, Width = 250, UseSystemPasswordChar = true };
+    private readonly CheckBox _rememberLogin = new() { Text = "Запомнить данные", Left = 410, Top = 56, AutoSize = true };
+    private readonly RememberedLoginStore _rememberedLoginStore;
+
     private readonly Button _login = new() { Text = "Войти", Left = 410, Top = 20, Width = 100, Height = 28 };
     private readonly Button _register = new() { Text = "Регистрация", Left = 518, Top = 20, Width = 118, Height = 28 };
     private readonly TextBox _installRoot = new() { Left = 142, Top = 101, Width = 390 };
@@ -24,8 +27,9 @@ internal sealed class MainForm : Form
     private CancellationTokenSource? _operation;
     private AuthSession? _session;
 
-    public MainForm()
+    public MainForm(RememberedLoginStore? rememberedLoginStore = null)
     {
+        _rememberedLoginStore = rememberedLoginStore ?? new RememberedLoginStore();
         Text = LauncherProfile.DisplayName;
         ClientSize = new Size(660, 250);
         FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -34,11 +38,29 @@ internal sealed class MainForm : Form
         Controls.Add(new Label { AutoSize = true, Text = "Имя пользователя:", Left = 24, Top = 25 });
         Controls.Add(new Label { AutoSize = true, Text = "Пароль:", Left = 24, Top = 59 });
         Controls.Add(new Label { AutoSize = true, Text = "Папка установки:", Left = 24, Top = 105 });
-        Controls.AddRange(new Control[] { _username, _password, _login, _register, _installRoot, _browse, _status, _play });
+        Controls.AddRange(new Control[] { _username, _password, _rememberLogin, _login, _register, _installRoot, _browse, _status, _play });
 
         _installRoot.Text = _settingsStore.Load().InstallRoot;
         _installRoot.ReadOnly = LauncherProfile.IsDevelopment;
         _browse.Visible = !LauncherProfile.IsDevelopment;
+        var remembered = _rememberedLoginStore.Load();
+        if (remembered is not null)
+        {
+            _username.Text = remembered.Username;
+            _password.Text = remembered.Password;
+            _rememberLogin.Checked = true;
+        }
+        _rememberLogin.CheckedChanged += (_, _) =>
+        {
+            if (_rememberLogin.Checked) return;
+            try { _rememberedLoginStore.Delete(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _rememberLogin.Checked = true;
+                MessageBox.Show(this, "Не удалось удалить сохранённые данные. Проверьте доступ к папке настроек и снимите галочку снова.",
+                    "Сохранённые данные", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
         _login.Click += (_, _) => AuthenticateAsync(register: false);
         _register.Click += (_, _) => AuthenticateAsync(register: true);
         _browse.Click += OnBrowse;
@@ -60,12 +82,26 @@ internal sealed class MainForm : Form
             _session = register
                 ? await auth.RegisterAsync(manifest.Auth, manifest.DevelopmentOnly, _username.Text, _password.Text, _operation.Token)
                 : await auth.LoginAsync(manifest.Auth, manifest.DevelopmentOnly, _username.Text, _password.Text, _operation.Token);
-            _password.Clear();
+            string? rememberWarning = null;
+            if (_rememberLogin.Checked)
+            {
+                try { _rememberedLoginStore.Save(_session.Username, _password.Text); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+                {
+                    rememberWarning = "Вход выполнен, но сохранить данные не удалось. Попробуйте войти снова.";
+                }
+            }
+            else
+            {
+                _password.Clear();
+            }
             _username.Text = _session.Username;
             _status.Text = register
                 ? $"Аккаунт {_session.Username} создан. Вход выполнен."
                 : $"Вход выполнен: {_session.Username}";
             _play.Enabled = true;
+            if (rememberWarning is not null)
+                MessageBox.Show(this, rememberWarning, "Сохранённые данные", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         catch (OperationCanceledException)
         {
@@ -179,6 +215,7 @@ internal sealed class MainForm : Form
         _browse.Enabled = !busy;
         _username.Enabled = !busy;
         _password.Enabled = !busy;
+        _rememberLogin.Enabled = !busy;
         _installRoot.Enabled = !busy;
         _play.Enabled = !busy && _session is not null;
     }
