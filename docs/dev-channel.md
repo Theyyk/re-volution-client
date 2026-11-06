@@ -195,3 +195,38 @@ to that diagnostic binary, without logging in, creating accounts or starting a g
 
 The final acceptance step uses the user's existing account: open the DEV EXE,
 log in, press Play and connect. No credentials are stored or supplied by these tools.
+
+## Remote DEV for a second player
+
+Local DEV remains the default: the EXE reads the loopback accepted channel and
+connects to `127.0.0.1:25568`. Remote DEV uses the same EXE and updater, but
+`Start-Remote-DEV.ps1` selects the explicitly configured HTTPS endpoint
+`/api/v1/dev/channel/remote`.
+
+The Auth service creates the remote response from the same local
+`.dev-channel/active.json`. It changes only `auth.baseUrl` and
+`server.host/server.port`; the accepted gameplay/client SHAs, server image,
+immutable release URLs, SHA-256 values and sizes remain unchanged. The endpoint
+is absent unless Docker receives both an HTTPS Auth origin and a Radmin VPN
+IPv4 address in `26.0.0.0/8`. MongoDB and the Admin API remain private.
+
+Place these files in one directory on the second PC:
+
+- `REvolutionClient_dev.exe`
+- `Start-Remote-DEV.ps1`
+- a local `remote-dev-url.txt` containing the owner-provided full HTTPS
+  `/api/v1/dev/channel/remote` URL
+
+Then run:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\Start-Remote-DEV.ps1
+```
+
+The URL file is runtime configuration and is intentionally not committed or
+published. It can also be supplied through
+`REVOLUTION_REMOTE_DEV_MANIFEST_URL`. Both players must join the same Radmin
+VPN network; the remote manifest points Minecraft at the detected host Radmin
+address on port 25568. A future accepted DEV candidate is picked up through the
+normal manifest and integrity-checked updater without rebuilding the launcher.
+
