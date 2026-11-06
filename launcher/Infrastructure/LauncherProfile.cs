@@ -42,6 +42,15 @@ internal static class LauncherProfile
         }
     }
 
+    public static bool IsSameAcceptedSnapshot(ClientManifest expected, ClientManifest actual) =>
+        expected.ManifestUrl == actual.ManifestUrl &&
+        expected.ServerImage == actual.ServerImage &&
+        expected.CommitSha == actual.CommitSha &&
+        expected.Source.GameplaySha == actual.Source.GameplaySha &&
+        expected.Source.ClientSha == actual.Source.ClientSha &&
+        expected.GameplaySha256 == actual.GameplaySha256 &&
+        expected.GameplaySize == actual.GameplaySize;
+
     public static void ValidateManifest(ClientManifest manifest)
     {
         if (!IsDevelopment) return;
