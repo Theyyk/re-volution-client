@@ -153,9 +153,8 @@ internal sealed class MainForm : Form
             var result = await bootstrap.PrepareAsync(manifest, progress, _operation.Token);
             if (LauncherProfile.IsDevelopment)
             {
-                var accepted = await new ManifestClient(http).GetAsync(new Uri(LauncherProfile.ManifestUrl), _operation.Token);
-                LauncherProfile.ValidateManifest(accepted);
-                if (accepted.ManifestUrl != result.Manifest.ManifestUrl || accepted.ServerImage != result.Manifest.ServerImage)
+                var accepted = (await LoadManifestAsync(manifestClient, _operation.Token)).Manifest;
+                if (!LauncherProfile.IsSameAcceptedSnapshot(accepted, result.Manifest))
                     throw new InvalidDataException("DEV сервер обновился во время подготовки. Нажмите Играть повторно.");
             }
             await minecraft.LaunchAsync(result.ForgeVersionName, result.Manifest.Minecraft, result.Java, _session, progress, _operation.Token);
