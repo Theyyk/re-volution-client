@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.Json.Nodes;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using REvolutionClient.Auth.Infrastructure;
@@ -45,18 +47,48 @@ if (!string.IsNullOrWhiteSpace(devChannelDirectory))
     app.MapGet("/api/v1/dev/channel", async (HttpContext context, CancellationToken token) =>
     {
         context.Response.Headers.CacheControl = "no-store";
-        var active = Path.Combine(devChannelDirectory, "active.json");
-        var updating = Path.Combine(devChannelDirectory, "updating");
-        if (File.Exists(updating) || !File.Exists(active))
-            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-        try
-        {
-            var json = await File.ReadAllTextAsync(active, token);
-            if (File.Exists(updating)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
-            return Results.Text(json, "application/json");
-        }
-        catch (IOException) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
+        var json = await ReadAcceptedDevChannelAsync(devChannelDirectory, token);
+        return json is null
+            ? Results.StatusCode(StatusCodes.Status503ServiceUnavailable)
+            : Results.Text(json, "application/json");
     });
+
+    var remoteDev = ResolveRemoteDevSettings();
+    if (remoteDev is not null)
+    {
+        app.MapGet("/api/v1/dev/channel/remote", async (HttpContext context, CancellationToken token) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            var json = await ReadAcceptedDevChannelAsync(devChannelDirectory, token);
+            if (json is null)
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+            try
+            {
+                var manifest = JsonNode.Parse(json) as JsonObject;
+                if (manifest?["developmentOnly"]?.GetValue<bool>() != true ||
+                    manifest["channel"]?.GetValue<string>() != "dev" ||
+                    manifest["auth"] is not JsonObject auth ||
+                    manifest["server"] is not JsonObject server)
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+                // Only transport endpoints differ. Accepted gameplay/client identity, hashes,
+                // immutable artifact URLs and server image remain byte-for-byte sourced from active.json.
+                auth["baseUrl"] = remoteDev.AuthBaseUrl.AbsoluteUri;
+                server["host"] = remoteDev.ServerHost;
+                server["port"] = remoteDev.ServerPort;
+                return Results.Text(manifest.ToJsonString(), "application/json");
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+        });
+    }
 }
 
 app.MapPost("/api/v1/auth/register", async (CredentialRequest request, AuthService auth, CancellationToken cancellationToken) =>
@@ -117,6 +149,59 @@ app.MapPost("/api/v1/auth/logout", async (HttpContext context, AuthService auth,
 
 await app.RunAsync();
 
+static async Task<string?> ReadAcceptedDevChannelAsync(string directory, CancellationToken token)
+{
+    var active = Path.Combine(directory, "active.json");
+    var updating = Path.Combine(directory, "updating");
+    if (File.Exists(updating) || !File.Exists(active))
+        return null;
+
+    try
+    {
+        var json = await File.ReadAllTextAsync(active, token);
+        return File.Exists(updating) ? null : json;
+    }
+    catch (IOException)
+    {
+        return null;
+    }
+}
+
+static RemoteDevSettings? ResolveRemoteDevSettings()
+{
+    var authValue = Environment.GetEnvironmentVariable("REVOLUTION_REMOTE_DEV_AUTH_URL");
+    var hostValue = Environment.GetEnvironmentVariable("REVOLUTION_REMOTE_DEV_SERVER_HOST");
+    var portValue = Environment.GetEnvironmentVariable("REVOLUTION_REMOTE_DEV_SERVER_PORT");
+
+    if (string.IsNullOrWhiteSpace(authValue) && string.IsNullOrWhiteSpace(hostValue) && string.IsNullOrWhiteSpace(portValue))
+        return null;
+    if (string.IsNullOrWhiteSpace(authValue) || string.IsNullOrWhiteSpace(hostValue))
+        throw new InvalidOperationException("Remote DEV requires both REVOLUTION_REMOTE_DEV_AUTH_URL and REVOLUTION_REMOTE_DEV_SERVER_HOST.");
+
+    if (!Uri.TryCreate(authValue, UriKind.Absolute, out var authUri) ||
+        authUri.Scheme != Uri.UriSchemeHttps ||
+        !string.IsNullOrEmpty(authUri.UserInfo) ||
+        !string.IsNullOrEmpty(authUri.Query) ||
+        !string.IsNullOrEmpty(authUri.Fragment) ||
+        authUri.AbsolutePath != "/")
+        throw new InvalidOperationException("Remote DEV Auth URL must be an HTTPS origin.");
+
+    if (!IPAddress.TryParse(hostValue, out var serverAddress) ||
+        serverAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork ||
+        serverAddress.GetAddressBytes()[0] != 26)
+        throw new InvalidOperationException("Remote DEV Minecraft host must be a Radmin VPN IPv4 address in 26.0.0.0/8.");
+
+    var serverPort = 25568;
+    if (!string.IsNullOrWhiteSpace(portValue) &&
+        (!int.TryParse(portValue, out serverPort) || serverPort is < 1 or > 65535))
+        throw new InvalidOperationException("Remote DEV Minecraft port is invalid.");
+
+    var normalizedAuthUri = authUri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
+        ? authUri
+        : new Uri(authUri.AbsoluteUri + "/");
+    return new RemoteDevSettings(normalizedAuthUri, serverAddress.ToString(), serverPort);
+}
+
 static string? GetBearerToken(HttpRequest request)
 {
     var header = request.Headers.Authorization.ToString();
@@ -134,3 +219,5 @@ static string ResolveDatabasePath()
     if (string.IsNullOrWhiteSpace(local)) local = AppContext.BaseDirectory;
     return Path.Combine(local, "REvolutionClient", "auth", "auth.db");
 }
+
+internal sealed record RemoteDevSettings(Uri AuthBaseUrl, string ServerHost, int ServerPort);
