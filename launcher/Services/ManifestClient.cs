@@ -27,6 +27,7 @@ internal sealed class ManifestClient
             throw new InvalidOperationException("Manifest endpoint must use HTTPS.");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        TunnelRequestPolicy.Apply(request, uri);
         request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
