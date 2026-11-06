@@ -23,15 +23,12 @@ def check(dll, enabled, remote_enabled=False):
             port = sock.getsockname()[1]
         base = f'http://127.0.0.1:{port}'
         env = dict(os.environ, REVOLUTION_AUTH_URL=base, REVOLUTION_AUTH_DB=str(root / 'auth.db'))
-        for name in ('REVOLUTION_DEV_CHANNEL_DIRECTORY', 'REVOLUTION_REMOTE_DEV_AUTH_URL',
-                     'REVOLUTION_REMOTE_DEV_SERVER_HOST', 'REVOLUTION_REMOTE_DEV_SERVER_PORT'):
-            env.pop(name, None)
+        env.pop('REVOLUTION_DEV_CHANNEL_DIRECTORY', None)
         if enabled:
             env['REVOLUTION_DEV_CHANNEL_DIRECTORY'] = directory
         if remote_enabled:
-            env['REVOLUTION_REMOTE_DEV_AUTH_URL'] = REMOTE_AUTH
-            env['REVOLUTION_REMOTE_DEV_SERVER_HOST'] = REMOTE_HOST
-            env['REVOLUTION_REMOTE_DEV_SERVER_PORT'] = '25568'
+            (root / 'remote.json').write_text(json.dumps(dict(
+                authBaseUrl=REMOTE_AUTH, serverHost=REMOTE_HOST, serverPort=25568)))
         with (root / 'server.log').open('w') as log:
             process = subprocess.Popen(['dotnet', str(Path(dll).resolve())], env=env, stdout=log, stderr=log,
                                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
