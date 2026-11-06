@@ -68,6 +68,7 @@ var fixture = JsonNode.Parse("""
   "manifestUrl":"https://github.com/Theyyk/re-volution-client/releases/download/dev-build-fixture/manifest.dev.json",
   "source":{"gameplaySha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","clientSha":"dddddddddddddddddddddddddddddddddddddddd"},
   "sourceRun":{"id":10,"attempt":1,"createdAt":"2026-10-23T01:00:00Z"},"imageBuild":{"id":20,"attempt":1},
+  "auth":{"baseUrl":"http://127.0.0.1:25567/"},"server":{"host":"127.0.0.1","port":25568},
   "files":[
     {"role":"gameplay-mod","path":"mods/RE-volution.jar","size":123,"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","downloadUrl":"https://github.com/Theyyk/re-volution-client/releases/download/dev-build-fixture/RE-volution.jar"},
     {"role":"client-mod","path":"mods/Client.jar","size":456,"sha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","downloadUrl":"https://github.com/Theyyk/re-volution-client/releases/download/dev-build-fixture/Client.jar"}
@@ -78,6 +79,22 @@ var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true
 ClientManifest Decode(JsonNode node) => JsonSerializer.Deserialize<ClientManifest>(node.ToJsonString(), jsonOptions)!;
 LauncherProfile.ValidateManifest(Decode(fixture));
 Console.WriteLine("PASS Complete exact DEV channel is accepted");
+var remoteFixture = fixture.DeepClone();
+((JsonObject)remoteFixture["auth"]!)["baseUrl"] = "https://remote-dev.example.test/";
+((JsonObject)remoteFixture["server"]!)["host"] = "26.1.2.3";
+Check(LauncherProfile.IsSameAcceptedSnapshot(Decode(fixture), Decode(remoteFixture)), "Remote transport keeps the accepted DEV snapshot identity");
+remoteFixture["commitSha"] = new string('f', 40);
+Check(!LauncherProfile.IsSameAcceptedSnapshot(Decode(fixture), Decode(remoteFixture)), "Changed gameplay commit is not the accepted DEV snapshot");
+using (var ngrokRequest = new HttpRequestMessage(HttpMethod.Get, "https://fixture.ngrok-free.dev/api/v1/dev/channel/remote"))
+{
+    TunnelRequestPolicy.Apply(ngrokRequest, ngrokRequest.RequestUri!);
+    Check(ngrokRequest.Headers.Contains("ngrok-skip-browser-warning"), "Remote DEV adds the ngrok API interop header");
+}
+using (var ordinaryRequest = new HttpRequestMessage(HttpMethod.Get, "https://github.com/Theyyk/re-volution-client"))
+{
+    TunnelRequestPolicy.Apply(ordinaryRequest, ordinaryRequest.RequestUri!);
+    Check(!ordinaryRequest.Headers.Contains("ngrok-skip-browser-warning"), "Non-ngrok requests keep unchanged headers");
+}
 foreach (var field in new[] { "commitSha", "serverImage", "gameplaySha256", "branch", "manifestUrl" })
 {
     var invalid = fixture.DeepClone();
