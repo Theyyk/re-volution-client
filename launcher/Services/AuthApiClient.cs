@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using REvolutionClient.Launcher.Model;
+using REvolutionClient.Launcher.Infrastructure;
 
 namespace REvolutionClient.Launcher.Services;
 
@@ -33,6 +34,7 @@ internal sealed class AuthApiClient
         {
             Content = JsonContent.Create(new AuthRequest { Username = username.Trim(), Password = password })
         };
+        TunnelRequestPolicy.Apply(request, endpoint);
         request.Headers.Accept.ParseAdd("application/json");
 
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

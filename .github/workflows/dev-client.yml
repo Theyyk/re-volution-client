@@ -94,7 +94,7 @@ jobs:
           CANDIDATE_ID: ${{ needs.changed.outputs.candidate_id }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CANDIDATE_ID)) { throw 'Missing exact candidate id.' }
-          gh release upload $env:CANDIDATE_ID launcher/publish-dev/REvolutionClient_dev.exe --repo $env:GITHUB_REPOSITORY --clobber
+          gh release upload $env:CANDIDATE_ID launcher/publish-dev/REvolutionClient_dev.exe launcher/Start-Remote-DEV.ps1 --repo $env:GITHUB_REPOSITORY --clobber
 
   publish-dev:
     needs: [changed, verify-dev]
@@ -138,8 +138,9 @@ jobs:
           set -euo pipefail
           test -n "$CANDIDATE_ID"
           mkdir -p dev-launcher
-          gh release download "$CANDIDATE_ID" --repo "$GITHUB_REPOSITORY" --pattern REvolutionClient_dev.exe --dir dev-launcher
+          gh release download "$CANDIDATE_ID" --repo "$GITHUB_REPOSITORY" --pattern REvolutionClient_dev.exe --pattern Start-Remote-DEV.ps1 --dir dev-launcher
           test -s dev-launcher/REvolutionClient_dev.exe
+          test -s dev-launcher/Start-Remote-DEV.ps1
       - name: Publish one manifest for the exact server and gameplay artifact
         if: ${{ !inputs.verify_only }}
         env:
@@ -149,4 +150,4 @@ jobs:
         if: ${{ !inputs.verify_only }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload dev-latest dev-launcher/REvolutionClient_dev.exe --repo "$GITHUB_REPOSITORY" --clobber
+        run: gh release upload dev-latest dev-launcher/REvolutionClient_dev.exe dev-launcher/Start-Remote-DEV.ps1 --repo "$GITHUB_REPOSITORY" --clobber
